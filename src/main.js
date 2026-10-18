@@ -15,7 +15,7 @@ const appVersion = require('../package.json').version;
 let storage;
 try { storage = configureStorage(app); }
 catch (error) {
-  dialog.showErrorBox('Astria — pasta sem acesso', 'Não foi possível abrir a pasta Save. Mova a pasta Astria para um local com permissão de gravação.\n\n' + error.message);
+  dialog.showErrorBox('Astria — Save folder unavailable', 'Cannot open Save. Move the Astria folder to a writable location.\n\nNão foi possível abrir Save. Mova a pasta Astria para um local com permissão de gravação.\n\n' + error.message);
   app.exit(1);
 }
 
@@ -23,6 +23,8 @@ app.setAppUserModelId('com.multinest.desktop');
 
 let windowMain;
 let state;
+const I18n = require('./i18n');
+const T = (value, ...values) => typeof value === 'string' ? I18n.translate(value, state?.preferences.language || 'en') : I18n.tag(value, values, state?.preferences.language || 'en');
 let configPath;
 let overlayOpen = false;
 let metricsTimer;
@@ -44,9 +46,9 @@ const initialConfig = () => ({
   version: 1,
   activeWorkspaceId: 'games',
   selectedAccountId: null,
-  workspaces: [{ id: 'games', name: 'Meus jogos', layout: 'auto' }],
+  workspaces: [{ id: 'games', name: T('Meus jogos'), layout: 'auto' }],
   accounts: [],
-  preferences: { theme: 'dark', sidebarWidth: 152 }
+  preferences: { theme: 'dark', sidebarWidth: 152, language: 'en' }
 });
 
 const allowedLayouts = new Set(['auto', 'columns', 'rows', 'focus']);
@@ -56,19 +58,19 @@ const hasId = (id) => typeof id === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(id);
 function safeURL(value) {
   let input = safeString(value, 2048);
   if (!input || (/^[a-z][a-z\d+.-]*:/i.test(input) && !/^https?:/i.test(input) && !/^[\w.-]+:\d+(?:\/|$)/.test(input))) {
-    throw new Error('Informe um endereço http/https válido.');
+    throw new Error(T('Informe um endereço http/https válido.'));
   }
   if (!/^https?:\/\//i.test(input)) input = 'https://' + input;
   let url;
-  try { url = new URL(input); } catch { throw new Error('URL inválida.'); }
-  if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Apenas sites http/https são permitidos.');
-  if (!url.hostname || url.username || url.password) throw new Error('URL inválida ou contém credenciais.');
+  try { url = new URL(input); } catch { throw new Error(T('URL inválida.')); }
+  if (!['http:', 'https:'].includes(url.protocol)) throw new Error(T('Apenas sites http/https são permitidos.'));
+  if (!url.hostname || url.username || url.password) throw new Error(T('URL inválida ou contém credenciais.'));
   return url.toString();
 }
 
 function normalizeImport(json) {
   if (!json || !Array.isArray(json.workspaces) || !Array.isArray(json.accounts)) {
-    throw new Error('Arquivo de configuração inválido.');
+    throw new Error(T('Arquivo de configuração inválido.'));
   }
   const used = new Set();
   const workspaces = [];
@@ -76,9 +78,9 @@ function normalizeImport(json) {
     if (!w || typeof w !== 'object') continue;
     const id = hasId(w.id) && !used.has(w.id) ? w.id : randomUUID();
     used.add(id);
-    workspaces.push({ id, name: safeString(w.name, 55) || 'Espaço', layout: allowedLayouts.has(w.layout) ? w.layout : 'auto' });
+    workspaces.push({ id, name: safeString(w.name, 55) || T('Espaço'), layout: allowedLayouts.has(w.layout) ? w.layout : 'auto' });
   }
-  if (!workspaces.length) workspaces.push({ id: randomUUID(), name: 'Meus jogos', layout: 'auto' });
+  if (!workspaces.length) workspaces.push({ id: randomUUID(), name: T('Meus jogos'), layout: 'auto' });
   const wIds = new Set(workspaces.map(w => w.id));
   const accounts = [];
   for (const a of json.accounts.slice(0, 300)) {
@@ -87,7 +89,7 @@ function normalizeImport(json) {
     try {
       const id = hasId(a.id) && !used.has(a.id) ? a.id : randomUUID();
       used.add(id);
-      accounts.push({ id, workspaceId: a.workspaceId, name: safeString(a.name, 55) || 'Conta', url: safeURL(a.url), muted: !!a.muted, zoom: Math.max(0.5, Math.min(2, Number(a.zoom) || 1)), color: normalizeColor(a.color) || colors.mint, activity: modeFor(a) });
+      accounts.push({ id, workspaceId: a.workspaceId, name: safeString(a.name, 55) || T('Conta'), url: safeURL(a.url), muted: !!a.muted, zoom: Math.max(0.5, Math.min(2, Number(a.zoom) || 1)), color: normalizeColor(a.color) || colors.mint, activity: modeFor(a) });
     } catch { /* skip malformed or unsupported entry */ }
   }
   return {
@@ -95,7 +97,7 @@ function normalizeImport(json) {
     activeWorkspaceId: wIds.has(json.activeWorkspaceId) ? json.activeWorkspaceId : workspaces[0].id,
     selectedAccountId: accounts.some(a => a.id === json.selectedAccountId) ? json.selectedAccountId : null,
     workspaces, accounts,
-    preferences: { theme: json.preferences?.theme === 'light' ? 'light' : 'dark', sidebarWidth: Number.isFinite(json.preferences?.sidebarWidth) ? sidebarWidth(json.preferences.sidebarWidth) : json.preferences?.sidebarCollapsed ? 44 : 152 }
+    preferences: { theme: json.preferences?.theme === 'light' ? 'light' : 'dark', sidebarWidth: Number.isFinite(json.preferences?.sidebarWidth) ? sidebarWidth(json.preferences.sidebarWidth) : json.preferences?.sidebarCollapsed ? 44 : 152, language: json.preferences?.language === 'en' ? 'en' : 'pt-BR' }
   };
 }
 
@@ -202,7 +204,7 @@ function makeView(account) {
     if (isMainFrame && code !== -3) setStatus(account.id, { loading: false, error: description });
   });
   view.webContents.on('render-process-gone', (_event, details) => {
-    setStatus(account.id, { error: 'Processo encerrado: ' + details.reason });
+    setStatus(account.id, { error: T('Processo encerrado: ') + details.reason });
   });
   view.webContents.on('before-input-event', (event, input) => {
     if (input.type !== 'keyDown') return;
@@ -310,7 +312,7 @@ function scheduleMetrics(delay = 200) {
 
 function accountById(id) {
   const account = state.accounts.find(a => a.id === id);
-  if (!account) throw new Error('Conta não encontrada.');
+  if (!account) throw new Error(T('Conta não encontrada.'));
   return account;
 }
 
@@ -318,10 +320,10 @@ function listen(name, fn) {
   actions.set(name, fn);
   ipcMain.handle(name, async (event, ...args) => {
     try {
-      if (!trustedSender(event)) throw new Error('Origem não autorizada.');
+      if (!trustedSender(event)) throw new Error(T('Origem não autorizada.'));
       return await fn(...args);
     }
-    catch (err) { return { ok: false, error: err.message || String(err) }; }
+    catch (err) { return { ok: false, error: T(err.message || String(err)) }; }
   });
 }
 
@@ -362,35 +364,35 @@ function showAccountMenu(id, point, params) {
   const a = accountById(id), v = views.get(id);
   const template = [
     { label: a.name, enabled: false },
-    { label: 'Renomear conta…', click: () => uiCommand('rename-account', id) },
-    { label: 'Escolher cor…', click: () => uiCommand('account-color', id) },
+    { label: T('Renomear conta…'), click: () => uiCommand('rename-account', id) },
+    { label: T('Escolher cor…'), click: () => uiCommand('account-color', id) },
     { type: 'separator' },
-    { label: 'Atividade', submenu: [
-      { label: 'Sempre ativa', type: 'radio', checked: modeFor(a) === 'always', click: () => runAction('account:activity', id, 'always') },
-      { label: 'Ativa quando visível', type: 'radio', checked: modeFor(a) === 'visible', click: () => runAction('account:activity', id, 'visible') },
-      { label: 'Suspender agora · liberar RAM', type: 'radio', checked: modeFor(a) === 'suspended', click: () => runAction('account:activity', id, 'suspended') },
+    { label: T('Atividade'), submenu: [
+      { label: T('Sempre ativa'), type: 'radio', checked: modeFor(a) === 'always', click: () => runAction('account:activity', id, 'always') },
+      { label: T('Ativa quando visível'), type: 'radio', checked: modeFor(a) === 'visible', click: () => runAction('account:activity', id, 'visible') },
+      { label: T('Suspender agora · liberar RAM'), type: 'radio', checked: modeFor(a) === 'suspended', click: () => runAction('account:activity', id, 'suspended') },
       { type: 'separator' },
-      { label: 'Quando oculta: descarrega após 1 minuto', enabled: false },
-      { label: 'Ao retomar, o jogo reconecta', enabled: false }
+      { label: T('Quando oculta: descarrega após 1 minuto'), enabled: false },
+      { label: T('Ao retomar, o jogo reconecta'), enabled: false }
     ] },
     { type: 'separator' },
-    { label: 'Atualizar', accelerator: 'F5', enabled: !!v, click: () => runAction('view:reload', id) },
-    { label: 'Atualizar sem cache', accelerator: 'CmdOrCtrl+Shift+R', enabled: !!v, click: () => runAction('view:reload', id, true) },
-    { label: 'Endereço inicial', click: () => runAction('view:home', id) },
-    { label: a.muted ? 'Ativar áudio' : 'Silenciar', click: () => runAction('view:mute', id) },
+    { label: T('Atualizar'), accelerator: 'F5', enabled: !!v, click: () => runAction('view:reload', id) },
+    { label: T('Atualizar sem cache'), accelerator: 'CmdOrCtrl+Shift+R', enabled: !!v, click: () => runAction('view:reload', id, true) },
+    { label: T('Endereço inicial'), click: () => runAction('view:home', id) },
+    { label: a.muted ? T('Ativar áudio') : T('Silenciar'), click: () => runAction('view:mute', id) },
     { label: `Zoom · ${Math.round(a.zoom * 100)}%`, submenu: [
-      { label: 'Aumentar', click: () => runAction('view:zoom', id, 0.1) },
-      { label: 'Diminuir', click: () => runAction('view:zoom', id, -0.1) },
-      { label: 'Restaurar 100%', click: () => runAction('view:zoom', id, 1 - a.zoom) }
+      { label: T('Aumentar'), click: () => runAction('view:zoom', id, 0.1) },
+      { label: T('Diminuir'), click: () => runAction('view:zoom', id, -0.1) },
+      { label: T('Restaurar 100%'), click: () => runAction('view:zoom', id, 1 - a.zoom) }
     ] },
     { type: 'separator' },
-    { label: 'Editar endereço…', click: () => uiCommand('edit-account', id) },
-    { label: 'Nova conta neste espaço…', click: () => uiCommand('add-account') },
-    { label: 'Remover painel…', click: () => uiCommand('delete-account', id) }
+    { label: T('Editar endereço…'), click: () => uiCommand('edit-account', id) },
+    { label: T('Nova conta neste espaço…'), click: () => uiCommand('add-account') },
+    { label: T('Remover painel…'), click: () => uiCommand('delete-account', id) }
   ];
   if (params?.isEditable || params?.selectionText) {
-    template.push({ type: 'separator' }, { role: 'copy' });
-    if (params.isEditable) template.push({ role: 'paste' }, { role: 'selectAll' });
+    template.push({ type: 'separator' }, { role: 'copy', label: T('Copiar') });
+    if (params.isEditable) template.push({ role: 'paste', label: T('Colar') }, { role: 'selectAll', label: T('Selecionar tudo') });
   }
   popupMenu(template, point);
 }
@@ -400,29 +402,38 @@ function showAppMenu(point) {
   const metrics = app.getAppMetrics();
   const memory = Math.round(metrics.reduce((sum, m) => sum + Number(m.memory?.workingSetSize || 0), 0) / 1024);
   popupMenu([
-    { label: 'Nova conta…', click: () => uiCommand('add-account') },
-    { label: 'Novo espaço…', click: () => uiCommand('add-workspace') },
-    { label: 'Editar espaço…', click: () => uiCommand('edit-workspace') },
+    { label: T('Nova conta…'), click: () => uiCommand('add-account') },
+    { label: T('Novo espaço…'), click: () => uiCommand('add-workspace') },
+    { label: T('Editar espaço…'), click: () => uiCommand('edit-workspace') },
     { type: 'separator' },
-    { label: 'Layout', submenu: Object.entries({ auto: 'Grade automática', columns: 'Colunas', rows: 'Linhas', focus: 'Uma conta por vez' }).map(([layout, label]) => ({ label, type: 'radio', checked: workspace.layout === layout, click: () => runAction('workspace:layout', layout) })) },
+    { label: 'Layout', submenu: Object.entries({ auto: T('Grade automática'), columns: T('Colunas'), rows: T('Linhas'), focus: T('Uma conta por vez') }).map(([layout, label]) => ({ label, type: 'radio', checked: workspace.layout === layout, click: () => runAction('workspace:layout', layout) })) },
     { type: 'separator' },
-    { label: 'Exportar configuração…', click: () => runAction('config:export') },
-    { label: 'Importar configuração…', click: () => uiCommand('import') },
-    { label: storage.portable ? 'Abrir pasta Save' : 'Abrir pasta de dados', click: () => runAction('storage:open') },
-    { type: 'separator' },
-    { label: 'Desempenho', submenu: [
-      { label: `${views.size} painéis carregados · ~${memory} MB no aplicativo`, enabled: false },
-      ...(sharedAssets ? [{ label: `Cache público: ${sharedAssets.stats.hits} reutilizações · ${(sharedAssets.stats.savedBytes / 1048576).toFixed(1)} MB poupados nesta execução`, enabled: false }] : []),
-      { label: 'Ativa quando visível economiza RAM após 1 minuto', enabled: false },
-      { label: 'Suspender descarrega o painel imediatamente', enabled: false },
-      { label: 'Sobre os modos…', click: () => uiCommand('performance-help') }
+    { label: T('Exportar configuração…'), click: () => runAction('config:export') },
+    { label: T('Importar configuração…'), click: () => uiCommand('import') },
+    { label: storage.portable ? T('Abrir pasta Save') : T('Abrir pasta de dados'), click: () => runAction('storage:open') },
+    { label: T('Idioma'), submenu: [
+      { label: 'English', type: 'radio', checked: state.preferences.language === 'en', click: () => runAction('settings:language', 'en') },
+      { label: 'Português (Brasil)', type: 'radio', checked: state.preferences.language === 'pt-BR', click: () => runAction('settings:language', 'pt-BR') }
     ] },
-    { label: 'Verificar atualizações…', click: () => uiCommand('updates') },
-    { label: 'Astria · ' + appVersion + (storage.portable ? ' · Portátil' : ''), enabled: false }
+    { type: 'separator' },
+    { label: T('Desempenho'), submenu: [
+      { label: T`${views.size} painéis carregados · ~${memory} MB no aplicativo`, enabled: false },
+      ...(sharedAssets ? [{ label: T`Cache público: ${sharedAssets.stats.hits} reutilizações · ${(sharedAssets.stats.savedBytes / 1048576).toFixed(1)} MB poupados nesta execução`, enabled: false }] : []),
+      { label: T('Ativa quando visível economiza RAM após 1 minuto'), enabled: false },
+      { label: T('Suspender descarrega o painel imediatamente'), enabled: false },
+      { label: T('Sobre os modos…'), click: () => uiCommand('performance-help') }
+    ] },
+    { label: T('Verificar atualizações…'), click: () => uiCommand('updates') },
+    { label: 'Astria · ' + appVersion + (storage.portable ? T(' · Portátil') : ''), enabled: false }
   ], point);
 }
 
 function registerIPC() {
+  listen('settings:language', language => {
+    if (!['en', 'pt-BR'].includes(language)) throw new Error(T('Idioma inválido.'));
+    state.preferences.language = language;
+    publish(); return { ok: true };
+  });
   listen('updates:check', async () => ({ ok: true, ...await updates.check() }));
   listen('updates:download', async () => ({ ok: true, ...await updates.download(percent => {
     if (windowMain && !windowMain.isDestroyed()) windowMain.webContents.send('updates:progress', percent);
@@ -441,25 +452,25 @@ function registerIPC() {
   });
   listen('state:get', () => ({ ok: true, state, statuses: Object.fromEntries(viewStatuses) }));
   listen('workspace:add', (name) => {
-    const w = { id: randomUUID(), name: safeString(name, 55) || 'Novo espaço', layout: 'auto' };
+    const w = { id: randomUUID(), name: safeString(name, 55) || T('Novo espaço'), layout: 'auto' };
     state.workspaces.push(w); state.activeWorkspaceId = w.id; state.selectedAccountId = null;
     boundsForAccounts.clear(); publish(); return { ok: true };
   });
   listen('workspace:rename', (id, name) => {
     const w = state.workspaces.find(w => w.id === id);
-    if (!w) throw new Error('Espaço não encontrado.');
+    if (!w) throw new Error(T('Espaço não encontrado.'));
     w.name = safeString(name, 55) || w.name; publish(); return { ok: true };
   });
   listen('workspace:select', (id) => {
-    if (!state.workspaces.some(w => w.id === id)) throw new Error('Espaço não encontrado.');
+    if (!state.workspaces.some(w => w.id === id)) throw new Error(T('Espaço não encontrado.'));
     state.activeWorkspaceId = id;
     state.selectedAccountId = state.accounts.find(a => a.workspaceId === id)?.id || null;
     boundsForAccounts.clear(); publish(); return { ok: true };
   });
   listen('workspace:delete', (id) => {
-    if (state.workspaces.length < 2) throw new Error('Mantenha pelo menos um espaço.');
+    if (state.workspaces.length < 2) throw new Error(T('Mantenha pelo menos um espaço.'));
     const w = state.workspaces.find(w => w.id === id);
-    if (!w) throw new Error('Espaço não encontrado.');
+    if (!w) throw new Error(T('Espaço não encontrado.'));
     for (const a of state.accounts.filter(a => a.workspaceId === id)) destroyView(a.id);
     state.accounts = state.accounts.filter(a => a.workspaceId !== id);
     state.workspaces = state.workspaces.filter(w => w.id !== id);
@@ -468,14 +479,14 @@ function registerIPC() {
     boundsForAccounts.clear(); publish(); return { ok: true };
   });
   listen('workspace:layout', (layout) => {
-    if (!allowedLayouts.has(layout)) throw new Error('Layout desconhecido.');
+    if (!allowedLayouts.has(layout)) throw new Error(T('Layout desconhecido.'));
     state.workspaces.find(w => w.id === state.activeWorkspaceId).layout = layout;
     boundsForAccounts.clear(); publish(); return { ok: true };
   });
   listen('account:add', (data) => {
     const account = {
       id: randomUUID(), workspaceId: state.activeWorkspaceId,
-      name: safeString(data?.name, 55) || `Conta ${currentAccounts().length + 1}`,
+      name: safeString(data?.name, 55) || T`Conta ${currentAccounts().length + 1}`,
       url: safeURL(data?.url), muted: false, zoom: 1,
       color: normalizeColor(data?.color) || colors.mint, activity: 'visible'
     };
@@ -497,37 +508,37 @@ function registerIPC() {
     accountById(id); destroyView(id);
     state.accounts = state.accounts.filter(a => a.id !== id);
     if (state.selectedAccountId === id) state.selectedAccountId = currentAccounts()[0]?.id || null;
-    publish(); return { ok: true, note: 'Sessão salva no disco; dados do site não foram apagados.' };
+    publish(); return { ok: true, note: T('Sessão salva no disco; dados do site não foram apagados.') };
   });
   listen('account:select', (id) => {
     const a = accountById(id);
-    if (a.workspaceId !== state.activeWorkspaceId) throw new Error('Conta fora deste espaço.');
+    if (a.workspaceId !== state.activeWorkspaceId) throw new Error(T('Conta fora deste espaço.'));
     state.selectedAccountId = id; publish(); return { ok: true };
   });
   listen('account:rename', (id, name) => {
     const a = accountById(id), next = safeString(name, 55);
-    if (!next) throw new Error('Informe o nome da conta.');
+    if (!next) throw new Error(T('Informe o nome da conta.'));
     a.name = next; publish(); return { ok: true };
   });
   listen('account:color', (id, color) => {
     const next = normalizeColor(color);
-    if (!next) throw new Error('Cor inválida.');
+    if (!next) throw new Error(T('Cor inválida.'));
     accountById(id).color = next; publish(); return { ok: true };
   });
   listen('account:activity', (id, mode) => {
-    if (!activityModes.has(mode)) throw new Error('Modo de atividade inválido.');
+    if (!activityModes.has(mode)) throw new Error(T('Modo de atividade inválido.'));
     accountById(id).activity = mode; publish(); return { ok: true };
   });
   listen('view:reload', (id, ignoreCache = false) => {
     const a = accountById(id); const v = makeView(a);
-    if (!v) throw new Error('Retome a conta suspensa primeiro.');
+    if (!v) throw new Error(T('Retome a conta suspensa primeiro.'));
     if (ignoreCache) v.webContents.reloadIgnoringCache();
     else v.webContents.reload();
     return { ok: true };
   });
   listen('view:home', (id) => {
     const a = accountById(id), v = makeView(a);
-    if (!v) throw new Error('Retome a conta suspensa primeiro.');
+    if (!v) throw new Error(T('Retome a conta suspensa primeiro.'));
     v.webContents.loadURL(a.url).catch(() => {}); return { ok: true };
   });
   listen('view:mute', (id) => {
@@ -536,7 +547,7 @@ function registerIPC() {
     publish(); return { ok: true };
   });
   listen('view:zoom', (id, delta) => {
-    if (!Number.isFinite(delta)) throw new Error('Zoom inválido.');
+    if (!Number.isFinite(delta)) throw new Error(T('Zoom inválido.'));
     const a = accountById(id); a.zoom = Math.round(Math.max(0.5, Math.min(2, (a.zoom || 1) + Number(delta))) * 10) / 10;
     const view = views.get(id); if (view) view.webContents.setZoomFactor(a.zoom);
     publish(); return { ok: true };
@@ -548,28 +559,28 @@ function registerIPC() {
     publish(); return { ok: true };
   });
   listen('settings:sidebar-width', width => {
-    if (!Number.isFinite(width)) throw new Error('Largura inválida.');
+    if (!Number.isFinite(width)) throw new Error(T('Largura inválida.'));
     state.preferences.sidebarWidth = sidebarWidth(width);
     boundsForAccounts.clear(); publish(); return { ok: true };
   });
   listen('menu:layout', point => {
     const workspace = state.workspaces.find(w => w.id === state.activeWorkspaceId);
-    popupMenu(Object.entries({ auto: 'Grade automática', columns: 'Colunas', rows: 'Linhas', focus: 'Uma conta por vez' }).map(([layout, label]) => ({ label, type: 'radio', checked: workspace.layout === layout, click: () => runAction('workspace:layout', layout) })), point);
+    popupMenu(Object.entries({ auto: T('Grade automática'), columns: T('Colunas'), rows: T('Linhas'), focus: T('Uma conta por vez') }).map(([layout, label]) => ({ label, type: 'radio', checked: workspace.layout === layout, click: () => runAction('workspace:layout', layout) })), point);
     return { ok: true };
   });
   listen('menu:app', point => { showAppMenu(point); return { ok: true }; });
   listen('menu:account', (id, point) => { accountById(id); showAccountMenu(id, point); return { ok: true }; });
   listen('config:export', async () => {
     const { canceled, filePath } = await dialog.showSaveDialog(windowMain, {
-      title: 'Exportar espaços e contas (não inclui cookies)', defaultPath: storage.portable ? path.join(storage.backups, 'astria-config.json') : 'astria-config.json',
+      title: T('Exportar espaços e contas (não inclui cookies)'), defaultPath: storage.portable ? path.join(storage.backups, 'astria-config.json') : 'astria-config.json',
       filters: [{ name: 'JSON', extensions: ['json'] }]
     });
-    if (!canceled && filePath) fs.writeFileSync(filePath, JSON.stringify({ ...state, warning: 'Logins e cookies não estão neste arquivo.' }, null, 2));
+    if (!canceled && filePath) fs.writeFileSync(filePath, JSON.stringify({ ...state, warning: T('Logins e cookies não estão neste arquivo.') }, null, 2));
     return { ok: true, canceled };
   });
   listen('config:import', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog(windowMain, {
-      title: 'Importar espaços e contas (substitui a configuração)', properties: ['openFile'],
+      title: T('Importar espaços e contas (substitui a configuração)'), properties: ['openFile'],
       filters: [{ name: 'JSON', extensions: ['json'] }]
     });
     if (canceled || !filePaths?.[0]) return { ok: true, canceled: true };
@@ -579,7 +590,7 @@ function registerIPC() {
       const buffer = Buffer.alloc(3_000_001);
       let total = 0, count;
       do { ({ bytesRead: count } = await handle.read(buffer, total, buffer.length - total, null)); total += count; } while (count && total < buffer.length);
-      if (total > 3_000_000) throw new Error('Arquivo muito grande.');
+      if (total > 3_000_000) throw new Error(T('Arquivo muito grande.'));
       parsed = JSON.parse(buffer.subarray(0, total).toString('utf8'));
     } finally { await handle.close(); }
     const newState = normalizeImport(parsed);
@@ -660,8 +671,8 @@ app.on('second-instance', () => {
 });
 
 if (ownsInstance) app.whenReady().then(() => {
-  // Test fixtures opt in to loopback assets; shipped builds use the HTTPS host allowlist.
-  const testAssets = process.env.ASTRIA_TEST_ASSETS === '1' ? { allowURL: url => ['127.0.0.1', 'localhost'].includes(url.hostname) } : {};
+  // Test fixtures use loopback; normal downloads require DNS-pinned public HTTPS.
+  const testAssets = process.env.ASTRIA_TEST_ASSETS === '1' ? { allowURL: url => ['127.0.0.1', 'localhost'].includes(url.hostname), fetch: globalThis.fetch } : {};
   sharedAssets = new SharedAssets(storage.assets || path.join(app.getPath('userData'), 'SharedAssets'), testAssets);
   updates = new Updates({ storage, currentVersion: appVersion, ...releaseConfig });
   session.defaultSession?.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));

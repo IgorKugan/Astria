@@ -1,8 +1,8 @@
 {
   "name": "astria",
   "productName": "Astria",
-  "version": "1.5.0",
-  "description": "Navegador desktop com várias sessões independentes para sites e jogos idle.",
+  "version": "1.6.0",
+  "description": "Portable multi-account browser for browser games, with isolated sessions and a compact interface.",
   "main": "src/main.js",
   "private": true,
   "author": "Astria",
@@ -11,12 +11,12 @@
     "start": "node scripts/start-dev.js",
     "package:win": "electron-builder --win nsis",
     "package:portable": "electron-builder --win dir && node scripts/create-portable.js",
-    "test": "node tests/smoke.js && node tests/shared-assets.js && node tests/updates.js && node scripts/check-public.js",
+    "test": "node tests/smoke.js && node tests/shared-assets.js && node tests/public-fetch.js && node tests/i18n.js && node tests/updates.js && node scripts/check-public.js",
     "release:prepare": "node scripts/release.js",
     "test:e2e": "node tests/e2e.js",
     "test:portable": "node tests/portable.js",
-    "test:shared": "node tests/shared-e2e.js"
-    ,"test:update": "node tests/update-flow.js"
+    "test:shared": "node tests/shared-e2e.js",
+    "test:update": "node tests/update-flow.js"
   },
   "devDependencies": {
     "electron": "44.9.0",

@@ -7,11 +7,9 @@ const { SharedAssets, candidate, lifetime, cacheKey } = require('../src/shared-a
 const request = (url = 'https://game.test/assets/map.png', headers = {}) => new Request(url, { headers });
 const publicResponse = () => new Response('public asset', { headers: { 'content-type': 'image/png', 'cache-control': 'public,max-age=3600' } });
 assert.equal(candidate(request()), true);
-assert.equal(candidate(request('https://grf.robrowser.com/data/map.gat')), true);
-assert.equal(candidate(request('https://grf.robrowser.com/data/names.txt')), true);
-assert.equal(candidate(request('https://other.test/data/names.txt')), false);
-assert.equal(lifetime(new Response('map', { headers: { 'content-type': 'application/ro-altitude' } }), request('https://grf.robrowser.com/data/map.gat')), 900000);
-assert.equal(lifetime(new Response('map', { headers: { 'content-type': 'application/ro-altitude' } }), request('https://other.test/data/map.gat')), 0);
+assert.equal(candidate(request('https://cdn.example.com/data/map.gat')), true);
+assert.equal(candidate(request('https://cdn.example.com/data/names.txt')), false);
+assert.equal(lifetime(new Response('map', { headers: { 'content-type': 'application/octet-stream' } }), request('https://cdn.example.com/data/map.gat')), 0, 'no site-specific freshness exceptions');
 for (const suffix of ['api/sprite.png', 'config.js', 'runtime-config.js', 'assets/avatar.png', 'assets/map.png?token=secret', 'assets/map.png?account=1', 'assets/%GG.png']) assert.equal(candidate(request('https://game.test/' + suffix)), false, suffix);
 for (const headers of [{ authorization: 'secret' }, { range: 'bytes=0-1' }, { 'cache-control': 'no-cache' }]) assert.equal(candidate(request(undefined, headers)), false);
 assert.equal(lifetime(publicResponse()), 3600000);

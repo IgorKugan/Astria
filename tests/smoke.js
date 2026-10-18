@@ -93,7 +93,10 @@ const trustedEvent = () => ({ sender: mainWindow.webContents, senderFrame: mainW
 (async () => {
   await new Promise(resolve => setImmediate(resolve));
   assert.ok(mainWindow, 'main window exists');
-  assert.equal((await invoke('state:get')).state.workspaces[0].name, 'Meus jogos');
+  assert.equal((await invoke('state:get')).state.workspaces[0].name, 'My games');
+  assert.equal((await invoke('state:get')).state.preferences.language, 'en');
+  assert.equal((await invoke('settings:language','pt-BR')).ok,true);
+  assert.equal((await invoke('settings:language','fr')).ok,false);
   assert.equal((await invoke('account:add', {name: 'EK', url: 'example.com'})).ok, true);
   assert.equal((await invoke('account:add', {name: 'Druid', url: 'https://example.com'})).ok, true);
   let state = (await invoke('state:get')).state;
@@ -128,7 +131,7 @@ const trustedEvent = () => ({ sender: mainWindow.webContents, senderFrame: mainW
   assert.equal((await events.get('state:get')({ sender: {}, senderFrame: {} })).ok, false, 'reject untrusted IPC');
   assert.equal(allViews[0].webContents.popupHandler({ url: 'file:///C:/Windows/win.ini' }).action, 'deny');
   assert.equal((await invoke('account:add', {name: 'invalid', url: 'not a url !!!'})).ok, false);
-  assert.equal((await invoke('workspace:add', 'YggIdle')).ok, true);
+  assert.equal((await invoke('workspace:add', 'Second workspace')).ok, true);
   state = (await invoke('state:get')).state;
   assert.equal(state.workspaces.length, 2);
   assert.equal(mainWindow.contentView.children.length, 0, 'inactive workspace views detached');

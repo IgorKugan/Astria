@@ -7,6 +7,7 @@ const path = require('node:path');
 const { createHash, randomUUID } = require('node:crypto');
 const { Readable, Transform } = require('node:stream');
 const { pipeline } = require('node:stream/promises');
+const { publicFetch, publicURL } = require('./public-fetch');
 
 const MAX_FILE = 16 * 1024 * 1024;
 const MAX_DISK = 2 * 1024 * 1024 * 1024;
@@ -14,14 +15,13 @@ const STATIC = /\.(?:js|mjs|css|png|jpe?g|webp|gif|svg|ico|avif|bmp|tga|ogg|mp3|
 const SENSITIVE = /(?:^|[/_.-])(?:api|auth|login|logout|account|profile|character|save|config|runtime-config|user|private|avatar)(?:[/_.-]|$)/i;
 const QUERY_KEYS = new Set(['v', 'ver', 'version', 'hash', 'rev', 'build', '_', 't']);
 const VARY = new Set(['accept', 'accept-encoding', 'accept-language', 'origin', 'user-agent']);
-const publicRagnarok = url => url.hostname === 'grf.robrowser.com' && /^\/(?:data|bgm|system)\//i.test(url.pathname);
 const PATTERNS = 'js mjs css png jpg jpeg webp gif svg ico avif bmp tga ogg mp3 wav m4a mp4 webm woff woff2 ttf otf wasm spr act gat gnd rsw rsm rsm2 str pal grf gpf lub txt'.split(' ').map(ext => ({ urlPattern: 'http*://*.' + ext + '*', requestStage: 'Request' }));
 
 function candidate(request) {
   let url;
   try { url = new URL(request.url); } catch { return false; }
   if (!['http:', 'https:'].includes(url.protocol) || request.method !== 'GET' || url.username || url.password) return false;
-  try { if (!(STATIC.test(url.pathname) || publicRagnarok(url) && /\.txt$/i.test(url.pathname)) || SENSITIVE.test(decodeURIComponent(url.pathname))) return false; }
+  try { if (!STATIC.test(url.pathname) || SENSITIVE.test(decodeURIComponent(url.pathname))) return false; }
   catch { return false; }
   if ([...url.searchParams.keys()].some(key => !QUERY_KEYS.has(key.toLowerCase()))) return false;
   const headers = new Headers(request.headers);
@@ -34,16 +34,13 @@ function lifetime(response, request) {
   if (/(?:^|,)\s*(?:private|no-store|no-cache)(?:\s|,|=|$)/i.test(cc)) return 0;
   if ((response.headers.get('vary') || '').split(',').some(v => v.trim() && !VARY.has(v.trim().toLowerCase()))) return 0;
   const type = response.headers.get('content-type') || '';
-  const ragnarok = !!request && publicRagnarok(new URL(request.url));
-  if (!/^(?:image\/|audio\/|video\/|font\/|text\/(?:css|javascript)|application\/(?:javascript|x-javascript|wasm|font|x-font|vnd.ms-fontobject|octet-stream|ro-))/i.test(type) && !(ragnarok && /^text\/plain/i.test(type))) return 0;
+  if (!/^(?:image\/|audio\/|video\/|font\/|text\/(?:css|javascript)|application\/(?:javascript|x-javascript|wasm|font|x-font|vnd.ms-fontobject|octet-stream|ro-))/i.test(type)) return 0;
   const maxAge = cc.match(/(?:^|,)\s*max-age\s*=\s*"?(\d+)/i);
   const age = Math.max(0, Number(response.headers.get('age')) || 0);
   if (maxAge) return Math.max(0, Math.min(31536000, Number(maxAge[1])) - age) * 1000;
   const expires = Date.parse(response.headers.get('expires'));
   if (Number.isFinite(expires)) return Math.max(0, Math.min(31536000000, expires - Date.now()));
-  // The known anonymous RO asset CDN sends no freshness headers. Give only those
-  // static data files a short 15-minute freshness period; never apply this to APIs.
-  return ragnarok && !cc ? 900000 : 0;
+  return 0;
 }
 
 function cacheKey(request) {
@@ -54,11 +51,13 @@ function cacheKey(request) {
 }
 
 class SharedAssets {
-  constructor(directory, { fetch = globalThis.fetch, maxDisk = MAX_DISK, allowURL = trustedPublicURL } = {}) {
+  constructor(directory, { fetch = publicFetch, maxDisk = MAX_DISK, allowURL = trustedPublicURL } = {}) {
     this.directory = directory;
     this.fetch = fetch;
     this.maxDisk = maxDisk;
     this.allowURL = allowURL;
+    this.activeDownloads = 0;
+    this.downloadWaiters = [];
     this.pending = new Map();
     this.prepared = new WeakMap();
     this.commits = Promise.resolve();
@@ -129,6 +128,13 @@ class SharedAssets {
   }
 
   async download(request, key) {
+    if (this.activeDownloads >= 4) await new Promise(resolve => this.downloadWaiters.push(resolve));
+    else this.activeDownloads++;
+    try { return await this.downloadBody(request, key); }
+    finally { const next = this.downloadWaiters.shift(); if (next) next(); else this.activeDownloads--; }
+  }
+
+  async downloadBody(request, key) {
     const headers = new Headers();
     const incoming = new Headers(request.headers);
     for (const name of VARY) if (incoming.has(name) && name !== 'accept-encoding') headers.set(name, incoming.get(name));
@@ -162,7 +168,10 @@ class SharedAssets {
     let reused = !!meta;
     if (!meta) {
       reused = this.pending.has(key);
-      if (!reused) this.pending.set(key, this.download(request, key).catch(() => null).finally(() => this.pending.delete(key)));
+      if (!reused) {
+        if (this.pending.size >= 128) return null;
+        this.pending.set(key, this.download(request, key).catch(() => null).finally(() => this.pending.delete(key)));
+      }
       meta = await this.pending.get(key);
     }
     return meta ? { key, meta, reused } : null;
@@ -223,7 +232,7 @@ class SharedAssets {
 // A remote page must not use Node's anonymous downloader to probe local services.
 // Unknown games keep Chromium's normal per-profile networking and cache.
 function trustedPublicURL(url) {
-  return url.protocol === 'https:' && !url.port && ['huntera.com.br', 'www.huntera.com.br', 'jogo.yggidle.com.br', 'grf.robrowser.com'].includes(url.hostname);
+  return publicURL(url);
 }
 
 module.exports = { SharedAssets, candidate, lifetime, cacheKey, trustedPublicURL };

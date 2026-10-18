@@ -1,70 +1,58 @@
-ASTRIA PORTATIL / PORTABLE - WINDOWS X64
+ASTRIA PORTABLE / PORTATIL - WINDOWS X64
 
-ABRIR
-De dois cliques em Astria.exe. Nao precisa instalar Node.js ou executar instalador.
-Deixe portable.flag ao lado de Astria.exe para manter o modo portatil.
-Use uma pasta em que voce possa gravar arquivos.
-Prefira caminhos curtos, como D:\Astria ou E:\STUFF\Astria. Pastas muito profundas
-podem ultrapassar o limite de nomes de arquivos do Windows usado pelo navegador.
+ENGLISH
+Extract the entire ZIP and open Astria.exe. No installer or Node.js is required.
+Keep portable.flag and all supporting files beside the executable.
+Use a short writable path such as D:\Astria.
 
-COPIAR PARA OUTRO LOCAL OU COMPUTADOR
-1. Feche o Astria e espere a janela encerrar.
-2. Copie a pasta Astria INTEIRA, incluindo Save e os arquivos de suporte.
-3. Abra Astria.exe no novo local.
-Copiar apenas o executavel nao funciona. Nao use a mesma pasta Save em duas
-instancias simultaneas nem sincronize os bancos de dados enquanto estiverem abertos.
+LANGUAGE: Menu > Language > English / Portugues (Brasil). Your choice is saved.
 
-SEUS SAVES E DADOS
-Save\Games - arquivos exportados/baixados pelos jogos. Se aparecer uma janela
-Salvar como, voce pode confirmar essa pasta ou escolher outro destino.
-Save\Profile - configuracao do Astria e dados locais das contas (cookies,
-localStorage, IndexedDB, CacheStorage e demais arquivos do Chromium).
-Save\Backups - local para guardar suas copias de seguranca e configuracoes exportadas.
-Save\Updates - downloads verificados, preparacao e resultado das atualizacoes.
-Save\SharedAssets - cache comum de imagens, sons, fontes, CSS, JavaScript e WASM
-publicos dos hosts conhecidos de Huntera, YggIdle e do CDN roBrowser.
-As contas reutilizam os mesmos arquivos. Downloads sem cookies ou tokens;
-APIs, configuracoes, respostas privadas e arquivos sem permissao de cache nao sao
-compartilhados. O servidor define a validade e arquivos vencidos sao atualizados.
-Recursos do CDN publico grf.robrowser.com usados pelo YggIdle (mapas, sprites e
-tabelas) tambem entram no cache. Se esse CDN nao definir validade, usa 15 minutos.
-Limite de 2 GB no cache comum, com retirada dos arquivos mais antigos; ate 16 MB
-por arquivo. Os arquivos sao guardados conforme o jogo os carrega, nao o jogo inteiro.
-Save\Temp - arquivos temporarios do Astria e processos filhos.
-Save\LEIA-ME.txt - relacao das contas com suas pastas locais, atualizada pelo Astria.
-Save\Logs e Save\CrashDumps - diagnosticos locais, quando gerados.
-Todos os dados gerenciados pelo aplicativo portatil ficam nesta pasta. O Windows
-pode registrar historico de execucao, Prefetch e outros registros proprios do sistema;
-o aplicativo nao controla esses registros e nao pode prometer ausencia total de rastros.
-No menu de tres linhas, Abrir pasta Save abre esses arquivos no Explorador.
+MANUAL UPDATE
+1. Close Astria and back up your current folder.
+2. Extract the new ZIP elsewhere.
+3. Copy all files and folders INSIDE Astria-Portable-x.y.z into your existing folder.
+4. Replace program files. KEEP YOUR EXISTING Save folder.
+The release ZIP contains no Save folder or personal account data.
+Astria.exe must be beside Save, not in another nested version folder.
 
-BACKUP E RESTAURACAO
-Com o Astria fechado, copie a pasta Save inteira para um local seguro.
-Para restaurar, feche o Astria e substitua Save pela copia desejada.
-Mantenha o Profile completo, incluindo config.json, Local State e Partitions;
-nao edite os bancos de dados manualmente. Exportar configuracao no menu inclui
-apenas a lista e as preferencias das contas, nao uma copia completa das sessoes.
+DATA
+Save\Profile: settings and separate browser account profiles.
+Save\Games: saves and files downloaded/exported from games.
+Save\SharedAssets: reusable anonymous public files (2 GB total, 16 MB per file).
+Save\Backups: configuration exports and previous programs from updates.
+Save\Updates: verified update staging and local update logs.
+Save\Temp, Logs, CrashDumps: temporary and diagnostic files.
+Save\LEIA-ME.txt: account names and their profile folders.
 
-Jogos online normalmente mantem o progresso no servidor, vinculado a sua conta.
-Esta pasta nao converte progresso remoto em um arquivo de save. Para jogos com
-exportacao/importacao, use o comando de exportar do proprio jogo e guarde em Games.
-Em outro computador ou usuario do Windows, cookies e logins protegidos pelo sistema
-podem exigir que voce entre novamente. Nao e possivel garantir login automatico.
-Uma copia com Save preenchido contem dados privados das contas; para compartilhar
-o aplicativo com outra pessoa, use o pacote ZIP limpo de distribuicao.
+MOVE / BACKUP
+Close Astria, then copy the ENTIRE folder, including Save and support files.
+Do not run two copies against the same Save. Never distribute a populated Save.
+Online progress normally stays on the server. Windows-protected cookies may
+require another login on a different PC or Windows user. Compatibility varies.
+Windows may retain its own execution records outside the app folder.
 
-ATUALIZAR
-Use o menu Verificar atualizacoes. O download vem das Releases oficiais no GitHub.
-A assinatura Ed25519 e os hashes de cada arquivo sao verificados antes de atualizar.
-Reiniciar e atualizar fecha os jogos normalmente e troca apenas arquivos do programa.
-A versao anterior fica em Save\Backups. Save nunca e substituido pelo pacote.
-Se a troca ou a abertura inicial da interface falhar, a versao anterior e restaurada.
-O Windows pode mostrar SmartScreen/Firewall: o executavel nao tem assinatura
-comercial do Windows. A assinatura do pacote de atualizacao e independente disso.
+UPDATER
+Menu > Check for updates. Download, then choose Restart and update when ready.
+Signed manifests and per-file hashes verify the package. Save is kept. The old
+program is backed up and restored if replacement or initial UI startup fails.
+The executable is not commercially Windows-signed; SmartScreen or Firewall may
+show a prompt. Update package signatures are separate from Windows code signing.
 
-OPEN / MOVE / BACKUP
-Run Astria.exe. Keep the entire folder, including portable.flag and Save.
-Close Astria before copying or restoring Save. No installer or Node.js is needed.
-Save\Games contains exported game files; Save\Profile contains browser profiles.
-Save\SharedAssets contains shared public game files; account data stays isolated.
-Online game progress stays on the game server. Sign-in may be required on another PC.
+PORTUGUES (BRASIL)
+Extraia o ZIP inteiro e abra Astria.exe. Nao precisa de instalador nem Node.js.
+Mantenha portable.flag e todos os arquivos de suporte ao lado do executavel.
+Menu > Idioma permite escolher English / Portugues (Brasil).
+
+PARA ATUALIZAR COPIANDO
+Feche o Astria e faca backup. Extraia o ZIP em outro local. Copie todos os arquivos
+e pastas DE DENTRO de Astria-Portable-x.y.z para sua pasta Astria atual.
+Substitua os arquivos do programa e MANTENHA SUA PASTA Save.
+O ZIP limpo nao inclui Save e nao substitui seus perfis, logins ou saves.
+Astria.exe deve ficar ao lado de Save, sem outra subpasta de versao.
+
+Profile guarda perfis das contas; Games guarda arquivos exportados/baixados.
+Para transferir, feche o Astria e copie a pasta inteira, incluindo Save.
+O progresso online normalmente fica no servidor. Outro PC pode exigir novo login.
+Nunca compartilhe seu Save preenchido; distribua o ZIP limpo.
+Menu > Verificar atualizacoes baixa e verifica o pacote antes de reiniciar.
+O Windows pode manter registros e mostrar avisos de SmartScreen/Firewall.

@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld('multiNest', Object.freeze({
   mute: id => invoke('view:mute', id),
   zoom: (id, delta) => invoke('view:zoom', id, delta),
   theme: theme => invoke('settings:theme', theme),
+  language: language => invoke('settings:language', language),
   export: () => invoke('config:export'),
   import: () => invoke('config:import'),
   updateCheck: () => invoke('updates:check'),

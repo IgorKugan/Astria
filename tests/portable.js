@@ -44,6 +44,7 @@ async function launch() {
   application = await electron.launch({ executablePath: path.join(directory, 'Astria.exe'), env });
   page = await application.firstWindow();
   await page.waitForSelector('#grid .empty, #grid .panel');
+  await page.evaluate(()=>window.multiNest.language('pt-BR'));
   const paths = await application.evaluate(({ app }) => Object.fromEntries(['userData', 'sessionData', 'downloads', 'logs', 'crashDumps', 'temp'].map(key => [key, app.getPath(key)])));
   assert.equal(paths.userData, path.join(directory, 'Save', 'Profile'));
   assert.equal(paths.sessionData, paths.userData);

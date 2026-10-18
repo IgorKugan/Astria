@@ -1,11 +1,15 @@
-# Contributing
+# Project policy / Política do projeto
 
-Use Node.js 24 LTS, Git and Windows x64. Run `npm ci`, `npm test`, `npm run test:e2e` and `npm run test:shared`. `npm start` uses a development profile under this checkout's ignored `Save/Profile`; it does not open your portable profiles.
+This project is maintained by its owner. **External contributions are not accepted.** Pull requests, public issues and discussions are disabled. Download the portable ZIP from Releases. Report security vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
-Keep game sessions sandboxed. Never log or commit cookies, tokens, real account details, profiles, keys or populated saves. Tests must use temporary profiles and local fixture servers. Add a regression test for changes affecting session isolation, networking or updates.
+Este projeto é mantido pelo proprietário. **Contribuições externas não são aceitas.** Pull requests, issues públicas e discussões estão desativados. Baixe o ZIP portátil em Releases. Relate vulnerabilidades em particular conforme [SECURITY.md](SECURITY.md).
 
-Build with `npm run package:portable`. The versioned output directory must be new. For a personal fork, generate an update key with `node scripts/create-release-key.js`, change `src/release-config.json` to your repository, and retain the private key outside version control. Release signing requires `ASTRIA_UPDATE_PRIVATE_KEY` in the release environment or the ignored local key file. Never rotate the public key without a migration plan for existing users.
+## Owner: build and release
 
-Releases are prepared manually from a reviewed commit. The workflow builds and tests a clean portable ZIP and creates a draft release. Inspect it before publishing. `Save` is created on first launch and is not part of release archives. No game assets are redistributed.
+Use Windows x64, Node.js 24 LTS and Git. Run `npm ci`, `npm test`, `npm run test:e2e` and `npm run test:shared`. `npm start` uses an ignored development profile under this checkout's Save/Profile; it does not open personal portable profiles.
 
-After preparing the signed release, `npm run test:update` runs the Windows updater against a temporary copy. When requested, close only the temporary copy identified in the test output and press Enter in the test terminal. The test checks the normal restart, account/cookie preservation and failed-launch rollback. `ASTRIA_OLD_PORTABLE` can point to an earlier clean version to test an actual upgrade. It must never point to your populated personal app folder.
+`npm run package:portable` creates a new versioned folder. Set `ASTRIA_TEST_AUTO_SAVE=1` for the noninteractive download fixture in `npm run test:portable`. Tests use temporary profiles and fixture accounts. Local UI tests use real mouse drags; hosted Windows CI exercises the document pointer fallback because its desktop may revoke pointer capture.
+
+The manual **Prepare release** workflow builds, tests and signs a clean ZIP, then creates a draft GitHub Release. Review before publishing. `ASTRIA_UPDATE_PRIVATE_KEY` is a private GitHub Actions secret. No key, account data, game content or populated Save belongs in Git. ZIPs contain program files only; Save is created on first launch or preserved from an earlier version.
+
+The optional `npm run test:update` lifecycle test uses a temporary copy. Close only that copy when requested, wait for the process to exit, then press Enter in its terminal. Never pass your populated personal app as `ASTRIA_OLD_PORTABLE`.

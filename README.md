@@ -1,55 +1,69 @@
 # Astria
 
-A compact multi-account browser for Windows, designed for browser games such as Huntera and YggIdle. Each account has its own persistent session. Astria is an independent project and is not affiliated with those games or Idle Labs.
+[English](README.md) · [Português (Brasil)](README.pt-BR.md)
 
-## Download and run
+A compact, portable multi-account browser for **browser games** on Windows. Open the games you choose, keep separate account sessions, arrange their windows and control which pages stay active. No game accounts or game files are included.
 
-Download **Astria-Portable-x.y.z.zip** from [Releases](https://github.com/IgorKugan/Astria/releases/latest). Extract the entire folder to a short, writable path such as `D:\Astria`, then open **Astria.exe**. Windows x64 is required. No Node.js or installation is needed to run the portable edition. Keep every supporting file and `portable.flag` beside the executable. Windows may ask for confirmation because the binary does not have a commercial code-signing certificate.
+## Download
 
-Add a workspace and an account with **+**. Enter the game's URL and log in inside its page. Use a separate Astria account for each game account. Right-click an account to rename it, choose any color or control its activity. Drag the sidebar edge to resize it. Panel headers contain layout controls, theme toggle and approximate page RAM/CPU usage.
+**[Download the latest portable ZIP](https://github.com/IgorKugan/Astria/releases/latest)** from Releases. Choose `Astria-Portable-x.y.z.zip`; GitHub's automatic “Source code” archives are for developers, not the runnable app.
 
-| Activity | Behavior |
+1. Extract the ZIP completely to a short, writable path such as `D:\Astria`.
+2. Open **Astria.exe** inside the extracted folder.
+3. Keep all supporting files and `portable.flag` beside the executable.
+
+Windows x64 is required. You do not need Node.js or an installer. Windows may show SmartScreen or Firewall prompts because the executable does not have a commercial Windows code-signing certificate.
+
+## Update your existing portable folder by copying files
+
+1. Close Astria and back up your existing folder.
+2. Extract the new ZIP somewhere else.
+3. Copy **all files and folders inside `Astria-Portable-x.y.z`** into your existing Astria folder, replacing the program files. `Astria.exe` must end up beside your existing `Save` folder, not inside another nested folder.
+4. **Keep your existing Save folder.** Release ZIPs contain no Save folder, so they do not replace profiles, logins or downloaded saves.
+5. Open Astria.exe from your existing folder.
+
+The in-app alternative is **☰ → Check for updates… → Download update → Restart and update**. It verifies the signed package, preserves Save and keeps the previous program in Save/Backups. It never forces a restart while you are playing.
+
+## Language
+
+Open **☰ → Language → English / Português (Brasil)**. The choice is saved and applies immediately to Astria's interface, menus and dialogs. It does not change the language of websites or games. Fresh installations start in English; existing profiles keep Portuguese until you choose another language.
+
+## Accounts, layouts and activity
+
+- Use **+** to add a workspace or an account. Enter any browser game's HTTP/HTTPS URL and log in inside its page.
+- Each Astria account has its own cookies, localStorage, IndexedDB, CacheStorage and service workers.
+- Right-click an account to rename it, choose a color, control sound/zoom or change its activity.
+- Drag the sidebar edge to resize it. Panel headers contain layouts, theme switch and approximate page RAM/CPU usage.
+
+| Mode | Behavior |
 | --- | --- |
-| Always active | Keeps the page running in the background, including while minimized. Uses more memory. |
-| Active when visible | Reduces background activity and unloads a hidden page after one minute. It reconnects when shown. |
-| Suspended | Unloads immediately and reopens with the same profile when resumed. |
+| Always active | Keeps running across workspaces and while minimized. Uses more resources. |
+| Active when visible | Reduces background activity and unloads a hidden page after one minute. Showing it reconnects the game. |
+| Suspended | Unloads immediately. Resume reopens the same saved profile. |
 
-Unloading can disconnect a character. Offline progression depends on the game. Page memory figures are approximate and exclude shared application/GPU overhead.
+Unloading may disconnect a character. Offline progress depends on the game. Memory figures exclude shared app/GPU overhead. Compatibility depends on the website and its authentication requirements.
 
-## Portable saves and sessions
+## Portable data
 
-Everything managed by the portable app stays beside the executable, under **Save**:
+Astria creates **Save** beside the executable on first launch:
 
 | Folder | Contents |
 | --- | --- |
-| Profile | Astria settings and separate Chromium account profiles |
-| Games | Saves/files downloaded or exported from games |
-| SharedAssets | Reusable anonymous public assets, up to 2 GB, 16 MB per file |
+| Profile | Settings and separate Chromium account profiles |
+| Games | Files/saves downloaded or exported from games |
+| SharedAssets | Reusable anonymous public assets, up to 2 GB total and 16 MB per file |
 | Backups | Configuration exports and previous programs from updates |
-| Updates | Download staging and update logs |
-| Temp, Logs, CrashDumps | App temporary and diagnostic data |
+| Updates | Verified update staging and local update logs |
+| Temp, Logs, CrashDumps | Temporary and diagnostic data |
 
-To move or back up the app, **close it first and copy the entire folder, including Save**. Never run two copies against the same Save. Windows can retain its own execution records outside the app folder. Cookies protected by Windows may require a new login on another PC or Windows user. Server-side game progress still requires the game account and an internet connection.
+Use **☰ → Open Save folder** to find your files. `Save/LEIA-ME.txt` maps account names to profile folders. To move or back up Astria, close it first and copy the **entire folder, including Save**. Do not run two copies using the same Save.
 
-The menu **Abrir pasta Save** opens these files. `Save/LEIA-ME.txt` maps account names to their profile folders. Configuration export contains names, URLs and preferences; it does not export logins. Do not share your populated Save folder. Use the clean release ZIP to distribute Astria.
+Online progress normally stays on the game's server. Windows-protected cookies may require a new login on another PC or Windows user. Configuration export includes names, URLs and preferences, but no cookies or passwords. **Never distribute your populated Save folder.** Share the clean release ZIP.
 
-Public assets from the supported game/CDN hosts may be downloaded once and reused between profiles. Requests are anonymous and responses must pass the public-cache checks. APIs, cookies, private responses and per-account storage are never shared. Other sites and files above the cache limit use Chromium's own per-profile cache. A game's own CacheStorage/IndexedDB remains private and may contain additional cached assets.
+Public static assets may be reused between accounts when the server permits caching. Shared downloads are anonymous and require public HTTPS addresses. The checked public IPv4 address is pinned to prevent private-network requests. APIs, credentials, private responses and account storage are excluded. Other requests, including local and IPv6-only sites, use Chromium's native per-profile networking. A game's own private cache may still contain additional resources.
 
-## Updates
+## Project policy and security
 
-Open **☰ → Verificar atualizações…** to check GitHub Releases. Download the new version, then choose **Reiniciar e atualizar** when ready. There are no background checks or forced restarts. The updater verifies the signed manifest and each file, backs up the previous program under Save/Backups and preserves Save. It restores the previous program if replacement or initial interface startup fails. See [SECURITY.md](SECURITY.md) for the trust model and limitations.
+The official project is maintained by its owner. Outside pull requests, issues and discussions are disabled. Other users can download releases and read the public source; they cannot push changes to the official repository. Public materials remain copyable under the included license.
 
-## Build from source
-
-Install Node.js 24 LTS and Git, then:
-
-```powershell
-git clone https://github.com/IgorKugan/Astria.git
-cd Astria
-npm ci
-npm start
-```
-
-Development uses this checkout's ignored Save/Profile. `npm test` runs validation, cache, updater and public-file checks. `npm run test:e2e` tests the interface and storage isolation in real Chromium. `npm run test:shared` tests networking and shared assets with a local server. `npm run package:portable` creates a clean versioned portable folder. Set `ASTRIA_TEST_AUTO_SAVE=1` before `npm run test:portable` to test downloads without an interactive Save dialog. All automated session tests use temporary profiles.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for release signing and [SECURITY.md](SECURITY.md) for private vulnerability reporting. MIT license. No game code, game assets, account credentials or personal profiles are included in this repository.
+See [SECURITY.md](SECURITY.md) for private vulnerability reporting and security boundaries. Owner build instructions are in [CONTRIBUTING.md](CONTRIBUTING.md). MIT license.

@@ -85,6 +85,10 @@ async function readStorage(id) {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const url = `http://127.0.0.1:${server.address().port}/`;
   await launch();
+  assert.equal(await page.getAttribute('html','lang'),'en');
+  assert.equal(await page.locator('[data-i18n="Contas"]').innerText(),'Accounts');
+  await appMenu('Language','Português (Brasil)');
+  await page.waitForFunction(()=>document.documentElement.lang==='pt-BR');
   for (let i = 1; i <= 2; i++) await addAccount('Conta ' + i, url);
   await waitUntil(async () => (await getViews()).length === 2, 'two browser panels');
   let views = await getViews();
@@ -229,6 +233,20 @@ async function readStorage(id) {
     assert.equal(result.cache, 'account-' + i);
   }
   const restored = (await page.evaluate(() => window.multiNest.getState())).state;
+  assert.equal(restored.preferences.language,'pt-BR','chosen language survives restart');
+  const idsBeforeLanguage=restored.accounts.map(a=>a.id);
+  const restoredFirstLink=page.locator('.account-link').first();
+  await appMenu('Idioma','English');
+  await page.waitForFunction(()=>document.documentElement.lang==='en');
+  assert.equal(await page.locator('[data-i18n="Contas"]').innerText(),'Accounts');
+  const englishState=(await page.evaluate(()=>window.multiNest.getState())).state;
+  assert.deepEqual(englishState.accounts.map(a=>a.id),idsBeforeLanguage,'language switch preserves account identities');
+  assert.equal(await restoredFirstLink.innerText(),'Minha conta','custom account name is never translated');
+  await restoredFirstLink.click({button:'right'});await clickMenu(['Rename account…']);
+  await page.waitForSelector('#rename-name');
+  assert.equal(await page.locator('#modal-title').innerText(),'Rename account');
+  await page.click('[data-close]');
+  await appMenu('Language','Português (Brasil)');
   assert.equal(restored.accounts[0].zoom, 1.1);
   assert.equal(restored.accounts[0].muted, true);
   assert.equal(restored.accounts[0].name,'Minha conta');

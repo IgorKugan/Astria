@@ -21,8 +21,8 @@ function fixtureZip(files) {
 }
 (async () => {
   assert.equal(newer('1.10.0','1.9.9'),true); assert.equal(newer('1.5.0','1.5.0'),false); assert.equal(newer('1.4.9','1.5.0'),false); assert.equal(newer('../x','1.0.0'),false);
-  for (const url of ['http://huntera.com.br/main.js','http://127.0.0.1/a.js','https://evil.test/a.js','https://huntera.com.br.evil.test/a.js','https://huntera.com.br:8443/a.js']) assert.equal(trustedPublicURL(new URL(url)),false,url);
-  assert.equal(trustedPublicURL(new URL('https://grf.robrowser.com/data/map.gat')),true);
+  for (const url of ['http://game.example.com/main.js','http://127.0.0.1/a.js','https://evil.test/a.js','https://game.local/a.js','https://game.example.com:8443/a.js']) assert.equal(trustedPublicURL(new URL(url)),false,url);
+  assert.equal(trustedPublicURL(new URL('https://cdn.example.com/data/map.gat')),true);
   const directory=fs.mkdtempSync(path.join(os.tmpdir(),'astria-update-'));
   let network=0;
   const shared=new SharedAssets(path.join(directory,'cache'),{ fetch:async()=>{network++;throw new Error('Unexpected private network request');} });
