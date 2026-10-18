@@ -49,7 +49,7 @@ try {
     Move-Item -LiteralPath (Join-Path $job.stage $file.path) -Destination $target
     $movedNew.Add($file.path)
   }
-  $started = Start-Process -FilePath (Join-Path $root 'Astria.exe') -ArgumentList ('--astria-update-health="' + $JobPath + '"') -WorkingDirectory $root -WindowStyle Hidden -PassThru
+  $started = Start-Process -FilePath (Join-Path $root 'Astria.exe') -ArgumentList ('--astria-update-health="' + $JobPath + '"') -WorkingDirectory $root -WindowStyle Normal -PassThru
   $deadline = [DateTime]::UtcNow.AddSeconds(45)
   while (!(Test-Path -LiteralPath ($JobPath + '.healthy'))) {
     if ($started.HasExited -or [DateTime]::UtcNow -gt $deadline) { throw 'The updated interface did not start successfully' }
@@ -63,6 +63,6 @@ try {
   foreach ($name in $movedNew) { Remove-Item -LiteralPath (Join-Path $root $name) -Force }
   foreach ($name in $movedOld) { Move-Item -LiteralPath (Join-Path $job.backup $name) -Destination (Join-Path $root $name) -Force }
   [IO.File]::WriteAllText((Join-Path $folder 'result.txt'), 'Rolled back: ' + $failure)
-  Start-Process -FilePath (Join-Path $root 'Astria.exe') -WorkingDirectory $root -WindowStyle Hidden
+  Start-Process -FilePath (Join-Path $root 'Astria.exe') -WorkingDirectory $root -WindowStyle Normal
   exit 1
 }

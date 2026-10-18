@@ -573,8 +573,15 @@ function registerIPC() {
       filters: [{ name: 'JSON', extensions: ['json'] }]
     });
     if (canceled || !filePaths?.[0]) return { ok: true, canceled: true };
-    if (fs.statSync(filePaths[0]).size > 3_000_000) throw new Error('Arquivo muito grande.');
-    const parsed = JSON.parse(fs.readFileSync(filePaths[0], 'utf8'));
+    const handle = await fs.promises.open(filePaths[0], 'r');
+    let parsed;
+    try {
+      const buffer = Buffer.alloc(3_000_001);
+      let total = 0, count;
+      do { ({ bytesRead: count } = await handle.read(buffer, total, buffer.length - total, null)); total += count; } while (count && total < buffer.length);
+      if (total > 3_000_000) throw new Error('Arquivo muito grande.');
+      parsed = JSON.parse(buffer.subarray(0, total).toString('utf8'));
+    } finally { await handle.close(); }
     const newState = normalizeImport(parsed);
     for (const id of [...views.keys()]) destroyView(id);
     state = newState; boundsForAccounts.clear(); publish(); return { ok: true };

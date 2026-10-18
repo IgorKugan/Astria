@@ -75,11 +75,16 @@ class SharedAssets {
     if (!siteSession.storagePath || !siteSession.clearCache) return Promise.resolve();
     if (!this.prepared.has(siteSession)) this.prepared.set(siteSession, (async () => {
       const marker = path.join(siteSession.storagePath, 'astria-shared-cache-v1');
-      if (fs.existsSync(marker)) return;
-      // Drop old duplicated HTTP files once; cookies, IndexedDB and game saves stay.
-      await siteSession.clearCache();
       await fsp.mkdir(siteSession.storagePath, { recursive: true });
-      await fsp.writeFile(marker, 'Public HTTP assets now use Save/SharedAssets.\n');
+      let handle;
+      try { handle = await fsp.open(marker, 'wx'); }
+      catch (error) { if (error.code === 'EEXIST') return; throw error; }
+      try {
+        // Drop old duplicated HTTP files once; cookies, IndexedDB and game saves stay.
+        await siteSession.clearCache();
+        await handle.writeFile('Public HTTP assets now use Save/SharedAssets.\n');
+      } catch (error) { await fsp.unlink(marker).catch(() => {}); throw error; }
+      finally { await handle.close(); }
     })());
     return this.prepared.get(siteSession);
   }

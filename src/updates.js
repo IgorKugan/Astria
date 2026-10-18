@@ -1,6 +1,9 @@
 'use strict';
-const fs = require('node:fs');
-const fsp = require('node:fs/promises');
+const embeddedFS = require('node:fs');
+// Electron's patched fs treats app.asar as a virtual directory. Update payloads
+// must read/write the archive as an ordinary file, including while it is staged.
+const fs = process.versions.electron ? require('original-fs') : embeddedFS;
+const fsp = fs.promises;
 const path = require('node:path');
 const { createHash, verify, randomUUID } = require('node:crypto');
 const { Readable, Transform } = require('node:stream');
@@ -145,7 +148,7 @@ class Updates {
       const jobPath = path.join(folder, 'job.json');
       await fsp.writeFile(jobPath, JSON.stringify(job));
       const helper = path.join(folder, 'apply-update.ps1');
-      await fsp.copyFile(path.join(__dirname, 'apply-update.ps1'), helper);
+      await fsp.writeFile(helper, embeddedFS.readFileSync(path.join(__dirname, 'apply-update.ps1')));
       this.ready = { jobPath, helper };
       progress(100);
       return { version: manifest.version };

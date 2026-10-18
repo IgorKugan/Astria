@@ -76,7 +76,23 @@ async function readStorage(id) {
   for (let i = 0; i < views.length; i++) {
     await waitUntil(async () => (await inView(views[i].id, 'document.readyState')) === 'complete', 'loaded panel');
     const identity = 'account-' + i;
-    await inView(views[i].id, `(async () => { const identity = ${JSON.stringify(identity)}; document.cookie = 'identity=' + identity + '; Max-Age=86400; Path=/'; localStorage.setItem('identity', identity); await new Promise((resolve, reject) => { const r = indexedDB.open('isolation', 1); r.onupgradeneeded = () => r.result.createObjectStore('data'); r.onsuccess = () => { const db = r.result; const t = db.transaction('data','readwrite'); t.objectStore('data').put(identity,'identity'); t.oncomplete = () => { db.close(); resolve(); }; t.onerror = () => reject(t.error); }; r.onerror = () => reject(r.error); }); await (await caches.open('isolation')).put('/identity', new Response(identity)); return true; })()`);
+    const sitePage = application.context().pages().filter(p => p.url() === url)[i];
+    await sitePage.evaluate(async identity => {
+      document.cookie = 'identity=' + identity + '; Max-Age=86400; Path=/';
+      localStorage.setItem('identity', identity);
+      await new Promise((resolve, reject) => {
+        const r = indexedDB.open('isolation', 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('data');
+        r.onsuccess = () => {
+          const db = r.result, t = db.transaction('data', 'readwrite');
+          t.objectStore('data').put(identity, 'identity');
+          t.oncomplete = () => { db.close(); resolve(); };
+          t.onerror = () => reject(t.error);
+        };
+        r.onerror = () => reject(r.error);
+      });
+      await (await caches.open('isolation')).put('/identity', new Response(identity));
+    }, identity);
     const result = await readStorage(views[i].id);
     assert.deepEqual(result, { cookie: 'identity=' + identity, local: identity, indexed: identity, cache: identity, node: 'undefined', bridge: 'undefined' });
   }
@@ -120,6 +136,10 @@ async function readStorage(id) {
   assert.deepEqual(chrome,{header:36,sidebar:152,footers:0});
   assert.equal(await page.locator('#sidebar-toggle').count(),0,'logo no longer toggles sidebar');
   const edge=await page.locator('#sidebar-resizer').boundingBox();
+  await page.evaluate(()=>{
+    globalThis.resizeTrace=[];
+    for(const type of ['pointerdown','pointerup','pointercancel','lostpointercapture'])document.querySelector('#sidebar-resizer').addEventListener(type,event=>globalThis.resizeTrace.push({type,x:event.clientX,buttons:event.buttons,width:document.querySelector('.sidebar').getBoundingClientRect().width}));
+  });
   await page.mouse.move(edge.x+edge.width/2,edge.y+70);await page.mouse.down();await page.mouse.move(edge.x-108,edge.y+70,{steps:12});await page.mouse.up();
   await page.waitForFunction(()=>document.querySelector('.sidebar').getBoundingClientRect().width===44);
   await page.screenshot({path:path.join(output,'sidebar-collapsed.png')});
@@ -203,7 +223,13 @@ async function readStorage(id) {
   console.log('PASS: sessions, zoom and mute persist after application restart');
   assert.deepEqual(errors, [], 'renderer errors');
   fs.writeFileSync(path.join(output, 'astria-e2e-report.json'), JSON.stringify({ passed: true, profile, executable: process.env.MULTINEST_TEST_EXE || 'development', chrome, checks: ['cookies', 'localStorage', 'IndexedDB', 'CacheStorage', 'sandbox', 'toolbar layouts', 'theme switch', 'color wheel', 'custom hex colors', 'modals', 'sidebar drag', 'keyboard resize', 'page RAM/CPU', 'metrics pause on minimize', 'workspaces', 'restart', 'zoom', 'mute','native menus','rename','suspend/resume','always-active'], errors }, null, 2));
-})().catch(error => { console.error(error); process.exitCode = 1; }).finally(async () => {
+})().catch(async error => {
+  console.error(error); process.exitCode = 1;
+  if(page && !page.isClosed()){
+    console.error('Resize diagnostic:',JSON.stringify(await page.evaluate(()=>({trace:globalThis.resizeTrace,width:document.querySelector('.sidebar')?.getBoundingClientRect().width,dpr:devicePixelRatio})).catch(()=>null)));
+    await page.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});
+  }
+}).finally(async () => {
   if (application) await application.close();
   server.close();
 });
