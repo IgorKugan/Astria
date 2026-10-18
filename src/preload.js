@@ -1,0 +1,49 @@
+'use strict';
+const { contextBridge, ipcRenderer } = require('electron');
+
+// Only the local, trusted MultiNest interface gets this preload script.
+// Sites loaded into isolated panels never receive this API.
+const invoke = (channel, ...args) => ipcRenderer.invoke(channel, ...args);
+const subscribe = (channel, cb) => {
+  const handler = (_event, value) => cb(value);
+  ipcRenderer.on(channel, handler);
+  return () => ipcRenderer.removeListener(channel, handler);
+};
+contextBridge.exposeInMainWorld('multiNest', Object.freeze({
+  getState: () => invoke('state:get'),
+  workspaceAdd: name => invoke('workspace:add', name),
+  workspaceRename: (id, name) => invoke('workspace:rename', id, name),
+  workspaceSelect: id => invoke('workspace:select', id),
+  workspaceDelete: id => invoke('workspace:delete', id),
+  workspaceLayout: layout => invoke('workspace:layout', layout),
+  accountAdd: data => invoke('account:add', data),
+  accountEdit: (id, data) => invoke('account:edit', id, data),
+  accountDelete: id => invoke('account:delete', id),
+  accountSelect: id => invoke('account:select', id),
+  accountRename: (id, name) => invoke('account:rename', id, name),
+  accountColor: (id, color) => invoke('account:color', id, color),
+  accountActivity: (id, mode) => invoke('account:activity', id, mode),
+  appMenu: point => invoke('menu:app', point),
+  accountMenu: (id, point) => invoke('menu:account', id, point),
+  sidebarWidth: width => invoke('settings:sidebar-width', width),
+  layoutMenu: point => invoke('menu:layout', point),
+  reload: id => invoke('view:reload', id),
+  home: id => invoke('view:home', id),
+  mute: id => invoke('view:mute', id),
+  zoom: (id, delta) => invoke('view:zoom', id, delta),
+  theme: theme => invoke('settings:theme', theme),
+  export: () => invoke('config:export'),
+  import: () => invoke('config:import'),
+  updateCheck: () => invoke('updates:check'),
+  updateDownload: () => invoke('updates:download'),
+  updateInstall: () => invoke('updates:install'),
+  onUpdateProgress: cb => subscribe('updates:progress', cb),
+  setOverlay: open => ipcRenderer.send('ui:overlay', open),
+  layout: rects => ipcRenderer.send('layout:update', rects),
+  onState: cb => subscribe('state:updated', cb),
+  onStatus: cb => subscribe('view:status', cb),
+  onMetrics: cb => subscribe('view:metrics', cb),
+  onCommand: cb => subscribe('ui:command', cb),
+  onToast: cb => subscribe('ui:toast', cb),
+  onResize: cb => subscribe('window:resized', cb)
+}));

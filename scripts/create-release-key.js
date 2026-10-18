@@ -1,0 +1,13 @@
+'use strict';
+const fs = require('node:fs');
+const path = require('node:path');
+const { generateKeyPairSync } = require('node:crypto');
+const root = path.resolve(__dirname, '..');
+const directory = path.join(root, '.release-keys');
+fs.mkdirSync(directory, { recursive: true });
+const target = path.join(directory, 'update-private.pem');
+if (fs.existsSync(target)) throw new Error('Release key already exists; never replace an existing update identity.');
+const keys = generateKeyPairSync('ed25519', { publicKeyEncoding: { type: 'spki', format: 'pem' }, privateKeyEncoding: { type: 'pkcs8', format: 'pem' } });
+fs.writeFileSync(target, keys.privateKey, { mode: 0o600, flag: 'wx' });
+fs.writeFileSync(path.join(root, 'src', 'release-config.json'), JSON.stringify({ repository: 'IgorKugan/Astria', publicKey: keys.publicKey }, null, 2) + '\n');
+console.log('Update identity generated. Private key is local and excluded from Git.');

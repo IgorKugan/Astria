@@ -1,0 +1,40 @@
+'use strict';
+const fs = require('node:fs');
+const path = require('node:path');
+const { sign } = require('node:crypto');
+const { execFileSync } = require('node:child_process');
+const { hashFile } = require('../src/updates');
+const { packagePath } = require('../src/package-paths');
+const { version } = require('../package.json');
+const root = path.resolve(__dirname, '..');
+(async () => {
+  const source = path.join(root, 'dist', `Astria-Portable-${version}`);
+  const output = path.join(root, 'dist', 'release');
+  const stage = path.join(output, `Astria-Portable-${version}`);
+  if (fs.existsSync(stage)) throw new Error('Release staging already exists. Use a new version or move the previous output.');
+  fs.mkdirSync(stage, { recursive: true });
+  const files = [];
+  for (const entry of fs.readdirSync(source, { recursive: true, withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    const full = path.join(entry.parentPath, entry.name);
+    const relative = path.relative(source, full).replaceAll('\\', '/');
+    if (relative.startsWith('Save/')) continue;
+    if (!packagePath(relative)) throw new Error('Unexpected release file: ' + relative);
+    const target = path.join(stage, relative);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.copyFileSync(full, target);
+    files.push({ path: relative, size: fs.statSync(target).size, sha256: await hashFile(target) });
+  }
+  files.sort((a,b) => a.path.localeCompare(b.path, 'en'));
+  const asset = `Astria-Portable-${version}.zip`;
+  const zip = path.join(output, asset);
+  execFileSync('powershell.exe', ['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'archive-release.ps1'),'-Source',stage,'-Destination',zip], { stdio: 'inherit', windowsHide: true });
+  const manifest = Buffer.from(JSON.stringify({ schema: 1, version, platform: 'win32', arch: 'x64', asset, size: fs.statSync(zip).size, sha256: await hashFile(zip), files }, null, 2) + '\n');
+  const privateKey = process.env.ASTRIA_UPDATE_PRIVATE_KEY || fs.readFileSync(path.join(root, '.release-keys', 'update-private.pem'), 'utf8');
+  const signature = sign(null, manifest, privateKey).toString('base64');
+  require('../src/updates').verifyManifest(manifest, signature, require('../src/release-config.json').publicKey);
+  fs.writeFileSync(path.join(output, 'astria-update.json'), manifest);
+  fs.writeFileSync(path.join(output, 'astria-update.sig'), signature + '\n');
+  fs.writeFileSync(path.join(output, 'SHA256SUMS.txt'), `${await hashFile(zip)}  ${asset}\n`);
+  console.log('Clean signed portable release prepared: ' + zip);
+})().catch(e => { console.error(e.message); process.exitCode = 1; });

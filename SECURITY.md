@@ -1,0 +1,20 @@
+# Security
+
+Please report a vulnerability privately through this repository's **Security → Report a vulnerability** page. Do not post account tokens, cookies, profiles or private save files in issues.
+
+## Boundaries
+
+- Game pages run in sandboxed Chromium views with Node integration disabled, context isolation and web security enabled. They receive no Astria preload or privileged bridge. IPC operations accept only the local interface's main frame. Camera, microphone, location and device permissions are denied.
+- Accounts use separate persistent Chromium partitions. Cookies, localStorage, IndexedDB, CacheStorage and service workers remain per account. The same operating-system user can access the files; this is session isolation, not protection against someone with access to your Windows account.
+- Public shared assets are limited to an explicit HTTPS host list for Huntera, YggIdle and the public roBrowser CDN. Anonymous requests send no cookies or authorization. Private responses, APIs and sensitive paths are excluded. Other sites use native Chromium networking.
+- Portable data is stored under `Save`, beside the executable. **Do not upload or distribute your populated Save directory.** Online game progress is normally stored on the game's server. Windows-protected cookies may require another login after moving PCs.
+- Updates are manual and come from this repository's GitHub Releases over HTTPS. Ed25519 signatures authenticate the manifest, which includes a SHA-256 digest and size for every program file and the ZIP. Extraction rejects unknown paths, duplicates, links and files exceeding the limits. Only known program paths can be replaced; `Save` is never an update payload. The previous program is backed up and restored if replacement or initial interface startup fails. Game compatibility cannot be guaranteed by the startup check.
+- No GitHub token or private signing key is shipped in the app. Development keys remain local or in a GitHub Actions secret. Forks must generate their own update identity and change the configured repository before distributing builds.
+
+## Limitations and maintenance
+
+The Windows binaries are not Authenticode signed. Windows may display SmartScreen or Firewall prompts. The update manifest signature is separate from Windows code signing. Source review, tests and dependency scans reduce risk; they cannot guarantee the absence of vulnerabilities.
+
+The app does not bypass a game's authentication, anti-cheat or terms. Game content, code and credentials are not included in the download. Websites and game servers are separate trust boundaries. Keep Windows and Astria current, and avoid importing configurations from people you do not trust.
+
+The first public version is 1.5.0. Only the latest released version receives security fixes. `npm audit`, tests, CodeQL and secret scanning are part of maintenance; maintainers must review alerts and dependency update PRs before releasing.

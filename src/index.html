@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'">
+  <title>Astria</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <header class="titlebar">
+      <div class="brand" aria-label="Astria"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 2.6 6.6L22 12l-7.4 3.4L12 22l-2.6-6.6L2 12l7.4-3.4Z" fill="currentColor"/><circle cx="19" cy="4" r="1.3" fill="currentColor"/></svg><span>Astria</span></div>
+      <div class="drag-region"><span id="workspace-title">Meus jogos</span></div>
+      <button id="empty-theme" class="theme-toggle" role="switch" aria-label="Tema escuro" aria-checked="true" data-action="theme" title="Alternar tema"><span aria-hidden="true">☀</span><span aria-hidden="true">☾</span><i class="theme-thumb"></i></button>
+      <button id="app-menu" class="icon-button menu-button" title="Menu" aria-label="Menu" aria-haspopup="menu">☰</button>
+    </header>
+    <div class="workspace-shell">
+      <aside class="sidebar" aria-label="Espaços e contas">
+        <div class="section-label"><span>Espaços</span><button id="add-workspace" class="icon-button" title="Novo espaço" aria-label="Novo espaço">+</button></div>
+        <nav id="workspaces" class="workspace-list" aria-label="Espaços"></nav>
+        <div class="section-label accounts-label"><span>Contas</span><button id="add-account" class="icon-button" title="Nova conta" aria-label="Nova conta">+</button></div>
+        <nav id="sidebar-accounts" class="account-list" aria-label="Contas"></nav>
+      </aside>
+      <div id="sidebar-resizer" class="sidebar-resizer" role="separator" aria-label="Largura da lateral" aria-orientation="vertical" aria-valuemin="44" aria-valuemax="320" aria-valuenow="152" tabindex="0" title="Arraste para ajustar a lateral. Use as setas para ajuste fino."></div>
+      <main id="content" class="content"><div id="grid" class="panel-grid"></div></main>
+    </div>
+  </div>
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+  <div id="modal-root" class="modal-root hidden"></div>
+  <script src="color.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>
