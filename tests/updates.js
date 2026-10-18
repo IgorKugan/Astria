@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const { generateKeyPairSync, createHash, sign } = require('node:crypto');
-const { newer, verifyManifest, extract, githubFetch } = require('../src/updates');
+const { Updates, newer, verifyManifest, extract, githubFetch } = require('../src/updates');
 const { trustedPublicURL, SharedAssets } = require('../src/shared-assets');
 const hash = value => createHash('sha256').update(value).digest('hex');
 // Tiny stored-entry ZIP writer, including deliberately invalid paths for extraction tests.
@@ -48,5 +48,16 @@ function fixtureZip(files) {
   assert.equal(fs.existsSync(path.join(directory,'outside.txt')),false);
   await assert.rejects(githubFetch('https://evil.test/update.zip',100,()=>{throw new Error('should not fetch');}),/autorizado/);
   await assert.rejects(githubFetch('https://github.com/a/b',100,async()=>new Response(null,{status:302,headers:{location:'http://127.0.0.1/private'}})),/autorizado/);
+  if(process.platform==='win32'){
+    const helper=path.join(directory,'helper.ps1'),jobPath=path.join(directory,'job.json');
+    const updates=new Updates({storage:{},currentVersion:'1.5.0'});
+    fs.writeFileSync(helper,'param([string]$JobPath) [IO.File]::WriteAllText(($JobPath+".ready"),"ready"); Start-Sleep -Milliseconds 500');
+    updates.ready={helper,jobPath};await updates.install();
+    assert.equal(fs.readFileSync(jobPath+'.ready','utf8'),'ready','hidden Windows helper actually runs before install resolves');
+    const failed=new Updates({storage:{},currentVersion:'1.5.0'});
+    const badHelper=path.join(directory,'bad-helper.ps1');fs.writeFileSync(badHelper,'exit 1');
+    failed.ready={helper:badHelper,jobPath:path.join(directory,'failed.json')};
+    await assert.rejects(failed.install(),/preparar/);
+  }
   console.log('PASS: signed updates, anti-downgrade version check, tamper detection, bounded extraction, traversal/private-path rejection, update host restrictions and shared-cache host isolation');
 })().catch(error=>{console.error(error);process.exitCode=1;});

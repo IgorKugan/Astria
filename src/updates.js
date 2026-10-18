@@ -159,7 +159,10 @@ class Updates {
     if (this.installing) throw new Error('A atualização já está sendo preparada.');
     this.installing = true;
     const log = fs.openSync(path.join(path.dirname(this.ready.jobPath), 'apply.log'), 'a');
-    const child = spawn(path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', this.ready.helper, '-JobPath', this.ready.jobPath], { detached: true, windowsHide: true, stdio: ['ignore', log, log] });
+    // Windows PowerShell can exit without executing -File when CREATE_NEW_PROCESS_GROUP
+    // (detached:true) is combined with a GUI parent. unref + file-backed stdio allow
+    // the ordinary hidden child to outlive the app without that broken launch mode.
+    const child = spawn(path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', this.ready.helper, '-JobPath', this.ready.jobPath], { windowsHide: true, stdio: ['ignore', log, log] });
     fs.closeSync(log);
     child.unref();
     return new Promise((resolve, reject) => {
