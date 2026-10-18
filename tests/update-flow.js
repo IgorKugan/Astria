@@ -64,7 +64,10 @@ async function sessionValues() {
   await app.close();app=null;
   // Playwright owns the launched app's process tree. Launch the detached helper
   // from the test harness so its cleanup cannot terminate the helper mid-update.
-  const helper=spawn('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',checked.ready.helper,'-JobPath',checked.ready.jobPath],{detached:true,windowsHide:true,stdio:'ignore'});
+  const helperLog=fs.openSync(path.join(path.dirname(checked.ready.jobPath),'test-helper.log'),'a');
+  const helper=spawn('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',checked.ready.helper,'-JobPath',checked.ready.jobPath],{detached:true,windowsHide:true,stdio:['ignore',helperLog,helperLog]});
+  fs.closeSync(helperLog);
+  helper.on('exit',code=>{if(code)console.error('Helper exited:',code,fs.readFileSync(path.join(path.dirname(checked.ready.jobPath),'test-helper.log'),'utf8'));});
   helper.unref();
   const resultPath=path.join(path.dirname(checked.ready.jobPath),'result.txt');
   await until(()=>fs.existsSync(resultPath),'update result');

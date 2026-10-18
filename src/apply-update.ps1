@@ -28,6 +28,7 @@ foreach ($file in $job.files) {
   if ((Get-Item -LiteralPath $target).Length -ne $file.size -or (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash -ne $file.sha256) { throw 'Staged file verification failed' }
 }
 # The app exits normally and flushes its profiles before any program file moves.
+[IO.File]::WriteAllText(($JobPath + '.ready'), 'Ready to wait for the app to close')
 $parent = Get-Process -Id $job.pid -ErrorAction SilentlyContinue
 if ($parent) { $parent | Wait-Process -Timeout 60 -ErrorAction Stop }
 New-Item -ItemType Directory -Path $job.backup | Out-Null

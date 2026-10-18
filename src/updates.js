@@ -156,9 +156,30 @@ class Updates {
   }
   install() {
     if (!this.ready) throw new Error('Baixe e verifique a atualização primeiro.');
-    const child = spawn(path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', this.ready.helper, '-JobPath', this.ready.jobPath], { detached: true, windowsHide: true, stdio: 'ignore' });
+    if (this.installing) throw new Error('A atualização já está sendo preparada.');
+    this.installing = true;
+    const log = fs.openSync(path.join(path.dirname(this.ready.jobPath), 'apply.log'), 'a');
+    const child = spawn(path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', this.ready.helper, '-JobPath', this.ready.jobPath], { detached: true, windowsHide: true, stdio: ['ignore', log, log] });
+    fs.closeSync(log);
     child.unref();
-    return new Promise((resolve, reject) => { child.once('spawn', resolve); child.once('error', reject); });
+    return new Promise((resolve, reject) => {
+      const deadline = Date.now() + 60000;
+      let timer;
+      const finish = error => {
+        clearTimeout(timer); child.removeListener('error', failed); child.removeListener('exit', exited);
+        if (error) { this.ready = null; this.installing = false; try { child.kill(); } catch { /* already exited */ } reject(error); }
+        else resolve();
+      };
+      const failed = error => finish(error);
+      const exited = () => finish(new Error('Não foi possível preparar a atualização. Consulte Save/Updates/apply.log.'));
+      child.once('error', failed); child.once('exit', exited);
+      const poll = () => {
+        if (fs.existsSync(this.ready.jobPath + '.ready')) return finish();
+        if (Date.now() > deadline) return finish(new Error('A preparação da atualização demorou demais. Seus jogos continuam abertos.'));
+        timer = setTimeout(poll, 200);
+      };
+      poll();
+    });
   }
 }
 module.exports = { Updates, newer, verifyManifest, hashFile, extract, githubFetch };
