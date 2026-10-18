@@ -241,7 +241,7 @@ async function readStorage(id) {
   assert.equal(await page.locator('[data-i18n="Contas"]').innerText(),'Accounts');
   const englishState=(await page.evaluate(()=>window.multiNest.getState())).state;
   assert.deepEqual(englishState.accounts.map(a=>a.id),idsBeforeLanguage,'language switch preserves account identities');
-  assert.equal(await restoredFirstLink.innerText(),'Minha conta','custom account name is never translated');
+  assert.equal(await restoredFirstLink.locator('.row-label').innerText(),'Minha conta','custom account name is never translated');
   await restoredFirstLink.click({button:'right'});await clickMenu(['Rename account…']);
   await page.waitForSelector('#rename-name');
   assert.equal(await page.locator('#modal-title').innerText(),'Rename account');
