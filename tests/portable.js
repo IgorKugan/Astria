@@ -70,7 +70,8 @@ async function inView(id, script) {
   await launch();
   for (let i = 0; i < 2; i++) {
     const result = await page.evaluate(({ name, url }) => window.multiNest.accountAdd({ name, url }), { name: `Portable ${i}`, url });
-    assert.equal(result.ok, true);
+    if (!result.ok) console.error('Packaged fixture diagnostic:', await application.evaluate(({app,BrowserWindow})=>({exe:app.getPath('exe'),source:app.getAppPath(),url:BrowserWindow.getAllWindows()[0].webContents.getURL()})), result.error);
+    assert.equal(result.ok, true, result.error || 'fixture account creation');
   }
   let ids = await until(async () => { const values = await views(); return values.length === 2 && values; }, 'two portable panels');
   for (let i = 0; i < ids.length; i++) {
