@@ -9,7 +9,7 @@ const { _electron: electron } = require('playwright');
 const root = path.resolve(__dirname, '..');
 const output = path.join(root, 'test-results');
 fs.mkdirSync(output, { recursive: true });
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'multinest-e2e-'));
+const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ae-'));
 const errors = [];
 let application, page;
 const server = http.createServer((_req, res) => {
@@ -54,7 +54,10 @@ async function getViews() {
     .filter(v => v.webContents).map(v => ({ id: v.webContents.id, bounds: v.getBounds(), url: v.webContents.getURL() })));
 }
 async function inView(id, script) {
-  return application.evaluate(({ webContents }, { id, script }) => webContents.fromId(id).executeJavaScript(script), { id, script });
+  return application.evaluate(({ webContents }, { id, script }) => new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>reject(new Error('Timed out reading fixture page')),20000);
+    webContents.fromId(id).executeJavaScript(script).then(value=>{clearTimeout(timer);resolve(value);},error=>{clearTimeout(timer);reject(error);});
+  }), { id, script });
 }
 async function addAccount(name, url) {
   await page.click('#add-account');
@@ -95,9 +98,10 @@ async function readStorage(id) {
   for (let i = 0; i < views.length; i++) {
     await waitUntil(async () => (await inView(views[i].id, 'document.readyState')) === 'complete', 'loaded panel');
     const identity = 'account-' + i;
-    await waitUntil(()=>application.context().pages().some(p=>p.url()===views[i].url),'matching fixture page');
-    const sitePage = application.context().pages().find(p => p.url() === views[i].url);
-    await sitePage.evaluate(async identity => {
+    await inView(views[i].id, `(async () => {
+      const fixture = location.hash.match(/^#fixture-(\\d+)$/);
+      if (!fixture) throw new Error('Missing fixture identity');
+      const identity = 'account-' + (Number(fixture[1]) - 1);
       document.cookie = 'identity=' + identity + '; Max-Age=86400; Path=/';
       localStorage.setItem('identity', identity);
       await new Promise((resolve, reject) => {
@@ -112,7 +116,8 @@ async function readStorage(id) {
         r.onerror = () => reject(r.error);
       });
       await (await caches.open('isolation')).put('/identity', new Response(identity));
-    }, identity);
+      return true;
+    })()`);
     const result = await readStorage(views[i].id);
     assert.deepEqual(result, { cookie: 'identity=' + identity, local: identity, indexed: identity, cache: identity, node: 'undefined', bridge: 'undefined' });
   }
