@@ -79,7 +79,7 @@ async function dragSidebar(from, to) {
   }
 }
 async function readStorage(id) {
-  return inView(id, `(async () => ({ cookie: document.cookie, local: localStorage.getItem('identity'), indexed: await new Promise((resolve, reject) => { const r = indexedDB.open('isolation'); r.onsuccess = () => { const db = r.result; const q = db.transaction('data').objectStore('data').get('identity'); q.onsuccess = () => { resolve(q.result); db.close(); }; q.onerror = () => reject(q.error); }; r.onerror = () => reject(r.error); }), cache: await (await (await caches.open('isolation')).match('/identity')).text(), node: typeof require, bridge: typeof window.multiNest }))()`);
+  return inView(id, `(async () => ({ cookie: document.cookie, local: localStorage.getItem('identity'), indexed: await new Promise((resolve, reject) => { const r = indexedDB.open('isolation'); r.onsuccess = () => { const db = r.result; if(!db.objectStoreNames.contains("data")){db.close();reject(new Error("Fixture storage is missing"));return;} const q = db.transaction('data').objectStore('data').get('identity'); q.onsuccess = () => { resolve(q.result); db.close(); }; q.onerror = () => reject(q.error); }; r.onerror = () => reject(r.error); }), cache: await (await (await caches.open('isolation')).match('/identity')).text(), node: typeof require, bridge: typeof window.multiNest }))()`);
 }
 (async () => {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -89,13 +89,14 @@ async function readStorage(id) {
   assert.equal(await page.locator('[data-i18n="Contas"]').innerText(),'Accounts');
   await appMenu('Language','Português (Brasil)');
   await page.waitForFunction(()=>document.documentElement.lang==='pt-BR');
-  for (let i = 1; i <= 2; i++) await addAccount('Conta ' + i, url);
+  for (let i = 1; i <= 2; i++) await addAccount('Conta ' + i, url + '#fixture-' + i);
   await waitUntil(async () => (await getViews()).length === 2, 'two browser panels');
   let views = await getViews();
   for (let i = 0; i < views.length; i++) {
     await waitUntil(async () => (await inView(views[i].id, 'document.readyState')) === 'complete', 'loaded panel');
     const identity = 'account-' + i;
-    const sitePage = application.context().pages().filter(p => p.url() === url)[i];
+    await waitUntil(()=>application.context().pages().some(p=>p.url()===views[i].url),'matching fixture page');
+    const sitePage = application.context().pages().find(p => p.url() === views[i].url);
     await sitePage.evaluate(async identity => {
       document.cookie = 'identity=' + identity + '; Max-Age=86400; Path=/';
       localStorage.setItem('identity', identity);
