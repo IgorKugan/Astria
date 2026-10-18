@@ -12,7 +12,7 @@ const distribution = process.env.ASTRIA_PORTABLE_DIR || path.join(root, 'dist', 
 // Chromium cache filenames can exceed Windows path limits in a deeply nested folder.
 const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ap-'));
 let directory = path.join(testRoot, 'Astria');
-fs.cpSync(distribution, directory, { recursive: true });
+fs.cpSync(process.env.ASTRIA_OLD_PORTABLE || distribution, directory, { recursive: true });
 let application, page;
 let assetDownloads = 0;
 const server = http.createServer((req, res) => {
@@ -44,7 +44,7 @@ async function launch() {
   application = await electron.launch({ executablePath: path.join(directory, 'Astria.exe'), env });
   page = await application.firstWindow();
   await page.waitForSelector('#grid .empty, #grid .panel');
-  await page.evaluate(()=>window.multiNest.language('pt-BR'));
+  await page.evaluate(()=>window.multiNest.language?.('pt-BR'));
   const paths = await application.evaluate(({ app }) => Object.fromEntries(['userData', 'sessionData', 'downloads', 'logs', 'crashDumps', 'temp'].map(key => [key, app.getPath(key)])));
   assert.equal(paths.userData, path.join(directory, 'Save', 'Profile'));
   assert.equal(paths.sessionData, paths.userData);
@@ -106,10 +106,19 @@ async function inView(id, script) {
   await until(async () => await application.evaluate(() => !!globalThis.exportOptions), 'export dialog options');
   assert.equal(await application.evaluate(() => globalThis.exportOptions.defaultPath), path.join(directory, 'Save', 'Backups', 'astria-config.json'));
   await application.close(); application = null;
+  if (process.env.ASTRIA_OLD_PORTABLE) {
+    // Match a user's manual update: replace program files while excluding Save.
+    fs.cpSync(distribution, directory, { recursive: true, filter: source => {
+      const relative = path.relative(distribution, source);
+      return relative.split(path.sep)[0].toLowerCase() !== 'save';
+    } });
+    console.log('PASS: manual program-file replacement preserved the existing Save folder');
+  }
   const relocated = path.join(testRoot, 'Cópia 2');
   fs.renameSync(directory, relocated);
   directory = relocated;
   await launch();
+  assert.equal(await application.evaluate(({app})=>app.getVersion()),version);
   ids = await until(async () => { const values = await views(); return values.length === 2 && values; }, 'relocated panels');
   for (let i = 0; i < ids.length; i++) {
     await until(async () => await inView(ids[i], 'document.readyState') === 'complete', 'relocated fixture');
