@@ -4,7 +4,7 @@ const { app, BrowserWindow, WebContentsView, ipcMain, session, dialog, nativeThe
 const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
-const { pathToFileURL } = require('node:url');
+const { isInterfaceURL } = require('./trusted-ui');
 const { pageMetrics } = require('./metrics');
 const { configureStorage, writeAccountGuide } = require('./storage');
 const { SharedAssets } = require('./shared-assets');
@@ -331,7 +331,7 @@ function trustedSender(event) {
   return !!windowMain && !windowMain.isDestroyed() &&
     event.sender === windowMain.webContents &&
     event.senderFrame === windowMain.webContents.mainFrame &&
-    event.senderFrame?.url === pathToFileURL(path.join(__dirname, 'index.html')).href;
+    isInterfaceURL(event.senderFrame?.url, path.join(__dirname, 'index.html'));
 }
 
 function updateTitleBar() {

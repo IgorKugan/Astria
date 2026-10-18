@@ -11,7 +11,7 @@
     "start": "node scripts/start-dev.js",
     "package:win": "electron-builder --win nsis",
     "package:portable": "electron-builder --win dir && node scripts/create-portable.js",
-    "test": "node tests/smoke.js && node tests/shared-assets.js && node tests/public-fetch.js && node tests/i18n.js && node tests/updates.js && node scripts/check-public.js",
+    "test": "node tests/smoke.js && node tests/trusted-ui.js && node tests/shared-assets.js && node tests/public-fetch.js && node tests/i18n.js && node tests/updates.js && node scripts/check-public.js",
     "release:prepare": "node scripts/release.js",
     "test:e2e": "node tests/e2e.js",
     "test:portable": "node tests/portable.js",
