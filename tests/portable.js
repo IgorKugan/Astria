@@ -115,7 +115,7 @@ async function inView(id, script) {
     } });
     console.log('PASS: manual program-file replacement preserved the existing Save folder');
   }
-  const relocated = path.join(testRoot, 'Cópia 2');
+  const relocated = path.join(testRoot, 'Cópia ~ 2');
   fs.renameSync(directory, relocated);
   directory = relocated;
   await launch();
