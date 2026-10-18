@@ -11,7 +11,7 @@ const { version } = require('../package.json');
 const root = path.resolve(__dirname, '..');
 const release = path.join(root, 'dist', 'release');
 const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'au-'));
-const directory = path.join(testRoot, 'Astria');
+const directory = path.join(testRoot, 'Astria cópia');
 fs.cpSync(process.env.ASTRIA_OLD_PORTABLE || path.join(root, 'dist', `Astria-Portable-${version}`), directory, { recursive: true });
 let app;
 const server = http.createServer((_req,res)=>{res.setHeader('Content-Type','text/html');res.end('<!doctype html><title>Update fixture</title><p>Local session fixture</p>');});
@@ -67,10 +67,11 @@ async function sessionValues() {
   const helperLog=fs.openSync(path.join(path.dirname(checked.ready.jobPath),'test-helper.log'),'a');
   const helper=spawn('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',checked.ready.helper,'-JobPath',checked.ready.jobPath],{windowsHide:true,stdio:['ignore',helperLog,helperLog]});
   fs.closeSync(helperLog);
-  helper.on('exit',code=>{if(code)console.error('Helper exited:',code,fs.readFileSync(path.join(path.dirname(checked.ready.jobPath),'test-helper.log'),'utf8'));});
+  let helperError;
+  helper.on('exit',code=>{if(code)helperError=new Error('Helper exited: '+code+' '+fs.readFileSync(path.join(path.dirname(checked.ready.jobPath),'test-helper.log'),'utf8'));});
   helper.unref();
   const resultPath=path.join(path.dirname(checked.ready.jobPath),'result.txt');
-  await until(()=>fs.existsSync(resultPath),'update result');
+  await until(()=>{if(helperError)throw helperError;return fs.existsSync(resultPath);},'update result');
   assert.match(fs.readFileSync(resultPath,'utf8'),/Update successful/);
   // Interactive lifecycle check: close this temporary fixture copy normally.
   console.log('CLOSE FIXTURE: '+directory+'\\Astria.exe then press Enter here.');

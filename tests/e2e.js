@@ -63,6 +63,21 @@ async function addAccount(name, url) {
   await page.click('#account-form button[type=submit]');
   await page.waitForSelector('#modal-root.hidden', { state: 'attached' });
 }
+async function dragSidebar(from, to) {
+  if(process.env.CI){
+    // Hosted Windows runners can revoke OS pointer capture while native views
+    // detach. Exercise the document-level fallback with DOM pointer events;
+    // local runs retain the real mouse drag below.
+    await page.evaluate(({from,to})=>{
+      const edge=document.querySelector('#sidebar-resizer');
+      edge.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,buttons:1,pointerId:77,clientX:from.x,clientY:from.y}));
+      document.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,buttons:1,pointerId:77,clientX:to.x,clientY:to.y}));
+      document.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,button:0,buttons:0,pointerId:77,clientX:to.x,clientY:to.y}));
+    },{from,to});
+  }else{
+    await page.mouse.move(from.x,from.y);await page.mouse.down();await page.mouse.move(to.x,to.y,{steps:12});await page.mouse.up();
+  }
+}
 async function readStorage(id) {
   return inView(id, `(async () => ({ cookie: document.cookie, local: localStorage.getItem('identity'), indexed: await new Promise((resolve, reject) => { const r = indexedDB.open('isolation'); r.onsuccess = () => { const db = r.result; const q = db.transaction('data').objectStore('data').get('identity'); q.onsuccess = () => { resolve(q.result); db.close(); }; q.onerror = () => reject(q.error); }; r.onerror = () => reject(r.error); }), cache: await (await (await caches.open('isolation')).match('/identity')).text(), node: typeof require, bridge: typeof window.multiNest }))()`);
 }
@@ -140,11 +155,11 @@ async function readStorage(id) {
     globalThis.resizeTrace=[];
     for(const type of ['pointerdown','pointerup','pointercancel','lostpointercapture'])document.querySelector('#sidebar-resizer').addEventListener(type,event=>globalThis.resizeTrace.push({type,x:event.clientX,buttons:event.buttons,width:document.querySelector('.sidebar').getBoundingClientRect().width}));
   });
-  await page.mouse.move(edge.x+edge.width/2,edge.y+70);await page.mouse.down();await page.mouse.move(edge.x-108,edge.y+70,{steps:12});await page.mouse.up();
+  await dragSidebar({x:edge.x+edge.width/2,y:edge.y+70},{x:edge.x-108,y:edge.y+70});
   await page.waitForFunction(()=>document.querySelector('.sidebar').getBoundingClientRect().width===44);
   await page.screenshot({path:path.join(output,'sidebar-collapsed.png')});
   const narrowEdge=await page.locator('#sidebar-resizer').boundingBox();
-  await page.mouse.move(narrowEdge.x+narrowEdge.width/2,narrowEdge.y+70);await page.mouse.down();await page.mouse.move(narrowEdge.x+narrowEdge.width/2+184,narrowEdge.y+70,{steps:12});await page.mouse.up();
+  await dragSidebar({x:narrowEdge.x+narrowEdge.width/2,y:narrowEdge.y+70},{x:narrowEdge.x+narrowEdge.width/2+184,y:narrowEdge.y+70});
   await page.waitForFunction(()=>document.querySelector('.sidebar').getBoundingClientRect().width===228);
   assert.equal((await page.evaluate(()=>window.multiNest.getState())).state.preferences.sidebarWidth,228);
   await page.locator('#sidebar-resizer').focus();await page.keyboard.press('ArrowRight');

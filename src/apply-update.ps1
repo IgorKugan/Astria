@@ -1,6 +1,6 @@
 param([Parameter(Mandatory=$true)][string]$JobPath)
 $ErrorActionPreference = 'Stop'
-$job = Get-Content -LiteralPath $JobPath -Raw | ConvertFrom-Json
+$job = Get-Content -LiteralPath $JobPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $root = [IO.Path]::GetFullPath($job.root).TrimEnd('\')
 $folder = [IO.Path]::GetFullPath($job.folder).TrimEnd('\')
 if ($folder -ne [IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($JobPath)) -or !$folder.StartsWith($root + '\Save\Updates\update-', [StringComparison]::OrdinalIgnoreCase)) { throw 'Invalid update folder' }
@@ -25,7 +25,11 @@ foreach ($file in $job.files) {
   $target = Join-Path $job.stage $file.path
   Assert-NoLinks $target
   Assert-NoLinks (Join-Path $root $file.path)
-  if ((Get-Item -LiteralPath $target).Length -ne $file.size -or (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash -ne $file.sha256) { throw 'Staged file verification failed' }
+  $stream = [IO.File]::OpenRead($target)
+  $algorithm = [Security.Cryptography.SHA256]::Create()
+  try { $digest = [BitConverter]::ToString($algorithm.ComputeHash($stream)).Replace('-','').ToLowerInvariant() }
+  finally { $stream.Dispose(); $algorithm.Dispose() }
+  if ((Get-Item -LiteralPath $target).Length -ne $file.size -or $digest -ne $file.sha256) { throw 'Staged file verification failed' }
 }
 # The app exits normally and flushes its profiles before any program file moves.
 [IO.File]::WriteAllText(($JobPath + '.ready'), 'Ready to wait for the app to close')
