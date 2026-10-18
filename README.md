@@ -1,6 +1,6 @@
 # Astria
 
-A compact multi-account browser for Windows, designed for browser games such as Huntera and YggIdle. Each account has its own persistent session. Astria is an independent project and is not affiliated with those games or Idle Labs.
+A compact multi-account browser for Windows, designed for browser games Each account has its own persistent session. Astria is an independent project and is not affiliated with those games or Idle Labs.
 
 ## Download and run
 
