@@ -60,8 +60,12 @@ async function sessionValues() {
     return {checked,ready:globalThis.testUpdater.ready};
   },{module:path.join(root,'src','updates.js'),root,release,version,directory});
   assert.equal(checked.checked.available,true);
-  await app.evaluate(async({app})=>{await globalThis.testUpdater.install();setTimeout(()=>app.quit(),200);});
-  await app.close().catch(()=>{});app=null;
+  console.log('Signed package verified; closing fixture before helper test.');
+  await app.close();app=null;
+  // Playwright owns the launched app's process tree. Launch the detached helper
+  // from the test harness so its cleanup cannot terminate the helper mid-update.
+  const helper=spawn('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',checked.ready.helper,'-JobPath',checked.ready.jobPath],{detached:true,windowsHide:true,stdio:'ignore'});
+  helper.unref();
   const resultPath=path.join(path.dirname(checked.ready.jobPath),'result.txt');
   await until(()=>fs.existsSync(resultPath),'update result');
   assert.match(fs.readFileSync(resultPath,'utf8'),/Update successful/);

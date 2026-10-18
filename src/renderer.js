@@ -183,7 +183,10 @@ el('add-account').onclick=()=>accountForm();
 const resizer=el('sidebar-resizer');
 resizer.addEventListener('pointerdown',e=>{
   if(e.button!==0||modalShowing)return;
-  e.preventDefault();resizer.focus();resizer.setPointerCapture(e.pointerId);
+  e.preventDefault();resizer.focus();
+  // Some remote Windows desktops cannot acquire pointer capture. The document
+  // handlers below keep dragging functional there without aborting pointerdown.
+  try { resizer.setPointerCapture(e.pointerId); } catch { /* document fallback */ }
   const width=el('sidebar-accounts').parentElement.getBoundingClientRect().width;
   sidebarDrag={x:e.clientX,start:width,width,pointer:e.pointerId};
   document.documentElement.classList.add('resizing');
@@ -191,7 +194,7 @@ resizer.addEventListener('pointerdown',e=>{
   // Views stay loaded; only the final width is persisted and applied to them.
   api.setOverlay(true);
 });
-resizer.addEventListener('pointermove',e=>{
+document.addEventListener('pointermove',e=>{
   if(sidebarDrag)sidebarDrag.width=applySidebar(sidebarDrag.start+e.clientX-sidebarDrag.x);
 });
 async function finishSidebarDrag(cancel=false){
@@ -203,8 +206,8 @@ async function finishSidebarDrag(cancel=false){
   else await call(api.sidebarWidth,drag.width);
   api.setOverlay(false);scheduleLayout();
 }
-resizer.addEventListener('pointerup',()=>finishSidebarDrag());
-resizer.addEventListener('pointercancel',()=>finishSidebarDrag(true));
+document.addEventListener('pointerup',()=>finishSidebarDrag());
+document.addEventListener('pointercancel',()=>finishSidebarDrag(true));
 resizer.addEventListener('lostpointercapture',()=>finishSidebarDrag());
 resizer.addEventListener('keydown',e=>{
   const width=Number(resizer.getAttribute('aria-valuenow'));
