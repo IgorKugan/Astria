@@ -621,12 +621,16 @@ function registerIPC() {
       boundsForAccounts.set(rect.id, { x, y, width, height });
     }
     refreshViews();
+    // A trusted renderer layout after ready-to-show confirms an interactive,
+    // visible interface instead of merely acknowledging the document load.
+    acknowledgeUpdateHealth();
   });
 }
 
 function createMainWindow() {
   windowMain = new BrowserWindow({
     width: 1500, height: 950, minWidth: 780, minHeight: 500,
+    show: false,
     backgroundColor: '#0b1020',
     title: 'Astria',
     icon: path.join(__dirname, 'astria.ico'),
@@ -637,6 +641,11 @@ function createMainWindow() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false, contextIsolation: true, sandbox: true
     }
+  });
+  // Wait for the first frame before showing a window launched by the hidden
+  // update worker. Showing its unpainted surface can leave it blank until resize.
+  windowMain.once('ready-to-show', () => {
+    if (windowMain && !windowMain.isDestroyed()) windowMain.show();
   });
   windowMain.loadFile(path.join(__dirname, 'index.html'));
   windowMain.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -658,13 +667,18 @@ function createMainWindow() {
   }
   windowMain.webContents.on('did-finish-load', () => {
     windowMain.webContents.send('state:updated', state);
-    const healthArgument = process.argv.find(value => value.startsWith('--astria-update-health='));
-    if (storage.portable && healthArgument) {
-      const jobPath = path.resolve(healthArgument.slice('--astria-update-health='.length));
-      const relative = path.relative(path.join(storage.root, 'Updates'), jobPath);
-      if (/^update-[a-f\d-]+[\\/]job\.json$/.test(relative) && fs.existsSync(jobPath)) fs.writeFileSync(jobPath + '.healthy', appVersion);
-    }
   });
+}
+
+function acknowledgeUpdateHealth() {
+  if (!windowMain || windowMain.updateHealthReported || !windowMain.isVisible() || windowMain.isMinimized()) return;
+  const healthArgument = process.argv.find(value => value.startsWith('--astria-update-health='));
+  if (storage.portable && healthArgument) {
+    const jobPath = path.resolve(healthArgument.slice('--astria-update-health='.length));
+    const relative = path.relative(path.join(storage.root, 'Updates'), jobPath);
+    if (/^update-[a-f\d-]+[\\/]job\.json$/.test(relative) && fs.existsSync(jobPath)) fs.writeFileSync(jobPath + '.healthy', appVersion);
+  }
+  windowMain.updateHealthReported = true;
 }
 
 const ownsInstance = app.requestSingleInstanceLock();
