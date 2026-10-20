@@ -24,6 +24,8 @@ Windows x64 is required. You do not need Node.js or an installer. Windows may sh
 
 The in-app alternative is **☰ → Check for updates… → Download update → Restart and update**. It verifies the signed package, preserves Save and keeps the previous program in Save/Backups. It never forces a restart while you are playing.
 
+**Upgrading from 1.6.0 or 1.6.1:** their Windows updater can stop after closing Astria. Use the ZIP replacement steps above for this first upgrade. Version 1.6.2 fixes the helper lifecycle for subsequent in-app updates. Your Save folder remains separate from program files.
+
 ## Language
 
 Open **☰ → Language → English / Português (Brasil)**. The choice is saved and applies immediately to Astria's interface, menus and dialogs. It does not change the language of websites or games. Fresh installations start in English; existing profiles keep Portuguese until you choose another language.

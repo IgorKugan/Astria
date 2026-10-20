@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$JobPath)
+param([Parameter(Mandatory=$true)][string]$JobPath, [switch]$Independent)
 $ErrorActionPreference = 'Stop'
 $job = Get-Content -LiteralPath $JobPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $root = [IO.Path]::GetFullPath($job.root).TrimEnd('\')
@@ -19,6 +19,14 @@ function Assert-NoLinks([string]$Target) {
 }
 Assert-NoLinks $folder
 Assert-NoLinks $job.backup
+if (!$Independent) {
+  # Node's Windows child job ends when Astria quits. A native PowerShell launch
+  # starts the worker outside that child job; keep this bootstrap alive until
+  # the worker exits, or Astria closes after observing the worker's ready file.
+  $worker = Start-Process -FilePath (Join-Path $PSHOME 'powershell.exe') -ArgumentList @('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',('"' + $PSCommandPath + '"'),'-JobPath',('"' + $JobPath + '"'),'-Independent') -WindowStyle Hidden -RedirectStandardOutput (Join-Path $folder 'worker.log') -RedirectStandardError (Join-Path $folder 'worker-error.log') -PassThru
+  $worker.WaitForExit()
+  exit $worker.ExitCode
+}
 foreach ($name in $job.oldFiles) { Assert-ProgramPath $name; Assert-NoLinks (Join-Path $root $name) }
 foreach ($file in $job.files) {
   Assert-ProgramPath $file.path

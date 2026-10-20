@@ -159,9 +159,8 @@ class Updates {
     if (this.installing) throw new Error('A atualização já está sendo preparada.');
     this.installing = true;
     const log = fs.openSync(path.join(path.dirname(this.ready.jobPath), 'apply.log'), 'a');
-    // Windows PowerShell can exit without executing -File when CREATE_NEW_PROCESS_GROUP
-    // (detached:true) is combined with a GUI parent. unref + file-backed stdio allow
-    // the ordinary hidden child to outlive the app without that broken launch mode.
+    // The hidden PowerShell bootstrap launches an independent native worker.
+    // unref alone cannot keep a Windows libuv child alive after the GUI exits.
     const child = spawn(path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', this.ready.helper, '-JobPath', this.ready.jobPath], { windowsHide: true, stdio: ['ignore', log, log] });
     fs.closeSync(log);
     child.unref();

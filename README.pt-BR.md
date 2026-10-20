@@ -24,6 +24,8 @@ Requer Windows x64. Não precisa de Node.js nem de instalador. O Windows pode mo
 
 Também é possível usar **☰ → Verificar atualizações… → Baixar atualização → Reiniciar e atualizar**. O programa verifica a assinatura, preserva Save e guarda o programa anterior em Save/Backups. Não força um reinício durante o jogo.
 
+**Atualizando da 1.6.0 ou 1.6.1:** o atualizador dessas versões pode parar após fechar o Astria no Windows. Use as instruções de substituição pelo ZIP acima nesta primeira atualização. A 1.6.2 corrige o auxiliar para as próximas atualizações dentro do programa. A pasta Save fica separada dos arquivos do aplicativo.
+
 ## Idioma
 
 Abra **☰ → Idioma → English / Português (Brasil)**. A escolha fica salva e altera imediatamente a interface, os menus e os diálogos do Astria. O idioma dos jogos e sites continua sendo definido por eles. Instalações novas começam em inglês; perfis existentes continuam em português até você escolher outro idioma.
