@@ -65,6 +65,10 @@ Each account uses Chromium's native HTTP cache inside its own profile. Game file
 
 Always active keeps pages loaded with timers unthrottled when switching accounts or workspaces. Every active game still needs its own CPU, RAM and GPU resources; running several can reduce the FPS available to the selected game. Use Active when visible or Suspended for accounts that do not need to keep running. Canvas rendering can pause in hidden accounts or while the window is minimized even though timers remain active. Keep the game visible if it requires continuous rendering; game progress depends on how that game handles background activity.
 
+When opening Astria, the selected visible account starts first. Other visible pages use a small loading queue, and hidden Always active accounts open one at a time after the visible navigation finishes. A slow site's initial loading slot expires after ten seconds so it cannot block the other accounts indefinitely. Selecting a queued account gives it priority. Activity settings and saved sessions are preserved.
+
+For faster startup after turning on the PC, keep the entire portable Astria folder, including Save, on an SSD. A mechanical hard drive can be much slower when Windows has not cached the program and profile files yet. Changing the storage location requires closing Astria first; no caches or profiles need to be deleted.
+
 ## Project policy and security
 
 The official project is maintained by its owner. Outside pull requests, issues and discussions are disabled. Other users can download releases and read the public source; they cannot push changes to the official repository. Public materials remain copyable under the included license.

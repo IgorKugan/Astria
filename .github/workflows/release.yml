@@ -24,6 +24,7 @@ jobs:
       - run: npm run test:e2e
       - run: npm run test:network
       - run: npm run test:activity
+      - run: npm run test:startup
       - run: npm run package:portable
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'

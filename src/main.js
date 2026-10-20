@@ -6,6 +6,7 @@ const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const { isInterfaceURL } = require('./trusted-ui');
 const { pageMetrics } = require('./metrics');
+const { planViewLoads } = require('./view-loads');
 const { configureStorage, writeAccountGuide } = require('./storage');
 const { Updates } = require('./updates');
 const releaseConfig = require('./release-config.json');
@@ -28,7 +29,11 @@ let configPath;
 let overlayOpen = false;
 let metricsTimer;
 let updates;
+let layoutReady = false;
+let windowShown = false;
+let quitting = false;
 const views = new Map();
+const initialLoads = new Map();
 const viewStatuses = new Map();
 const boundsForAccounts = new Map();
 const idleTimers = new Map();
@@ -38,6 +43,7 @@ const colors = { mint: '#46bfa8', blue: '#559ce8', violet: '#a78bed', amber: '#d
 const normalizeColor = color => typeof color === 'string' && /^#[a-f\d]{6}$/i.test(color) ? color.toLowerCase() : typeof color === 'string' && Object.hasOwn(colors, color) ? colors[color] : null;
 const sidebarWidth = value => Math.max(44, Math.min(320, Math.round(value)));
 const idleDelay = !app.isPackaged && process.env.ASTRIA_IDLE_MS ? Math.max(50, Number(process.env.ASTRIA_IDLE_MS) || 60000) : 60000;
+const initialLoadLimit = !app.isPackaged && process.env.ASTRIA_INITIAL_LOAD_MS ? Math.max(100, Number(process.env.ASTRIA_INITIAL_LOAD_MS) || 10000) : 10000;
 const modeFor = account => activityModes.has(account.activity) ? account.activity : 'visible';
 
 const initialConfig = () => ({
@@ -139,6 +145,14 @@ function setStatus(id, patch) {
   }
 }
 
+function finishInitialLoad(id, view) {
+  const pending = initialLoads.get(id);
+  if (!pending || pending.view !== view) return;
+  clearTimeout(pending.timer);
+  initialLoads.delete(id);
+  if (!quitting && windowMain && !windowMain.isDestroyed()) setImmediate(refreshViews);
+}
+
 function makeView(account) {
   if (views.has(account.id)) return views.get(account.id);
   if (modeFor(account) === 'suspended') return null;
@@ -162,6 +176,9 @@ function makeView(account) {
   });
   view.activityMode = modeFor(account);
   views.set(account.id, view);
+  // A broken/slow website must not hold the startup queue indefinitely.
+  initialLoads.set(account.id, { view, timer: setTimeout(() => finishInitialLoad(account.id, view), initialLoadLimit) });
+  setStatus(account.id, { queued: false, sleeping: false, loading: true, error: '' });
   view.setBounds({ x: 0, y: 0, width: 1, height: 1 });
   view.webContents.setAudioMuted(!!account.muted);
   view.webContents.setZoomFactor(Number(account.zoom) || 1);
@@ -197,11 +214,15 @@ function makeView(account) {
     child.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   });
   view.webContents.on('did-start-loading', () => setStatus(account.id, { loading: true, error: '' }));
-  view.webContents.on('did-stop-loading', () => setStatus(account.id, { loading: false }));
+  view.webContents.on('did-stop-loading', () => {
+    setStatus(account.id, { loading: false });
+    finishInitialLoad(account.id, view);
+  });
   view.webContents.on('did-fail-load', (_event, code, description, _url, isMainFrame) => {
     if (isMainFrame && code !== -3) setStatus(account.id, { loading: false, error: description });
   });
   view.webContents.on('render-process-gone', (_event, details) => {
+    finishInitialLoad(account.id, view);
     setStatus(account.id, { error: T('Processo encerrado: ') + details.reason });
   });
   view.webContents.on('before-input-event', (event, input) => {
@@ -214,12 +235,16 @@ function makeView(account) {
   });
   Promise.resolve().then(() => {
     if (views.get(account.id) === view && !view.webContents.isDestroyed()) return view.webContents.loadURL(account.url);
-  }).catch(err => setStatus(account.id, { error: err.message, loading: false }));
+  }).catch(err => {
+    setStatus(account.id, { error: err.message, loading: false });
+    finishInitialLoad(account.id, view);
+  });
   return view;
 }
 
 function destroyView(id, preserveBounds = false) {
   clearTimeout(idleTimers.get(id)); idleTimers.delete(id);
+  clearTimeout(initialLoads.get(id)?.timer); initialLoads.delete(id);
   const view = views.get(id);
   if (!view) return;
   if (windowMain && !windowMain.isDestroyed()) {
@@ -236,21 +261,32 @@ function destroyView(id, preserveBounds = false) {
 }
 
 function refreshViews() {
-  if (!windowMain || windowMain.isDestroyed()) return;
+  if (quitting || !windowMain || windowMain.isDestroyed()) return;
   const windowVisible = windowMain.isVisible() && !windowMain.isMinimized();
   const visible = new Set(windowVisible ? currentAccounts().filter(a => boundsForAccounts.has(a.id)).map(a => a.id) : []);
+  // Release slots belonging to accounts that were suspended before this pass.
+  for (const account of state.accounts) if (modeFor(account) === 'suspended') destroyView(account.id, true);
+  const starts = planViewLoads(state.accounts, {
+    ready: layoutReady && windowShown, visible, existing: new Set(views.keys()),
+    loading: new Set(initialLoads.keys()), selected: state.selectedAccountId
+  });
+  for (const account of starts) {
+    makeView(account);
+  }
   for (const account of state.accounts) {
     const mode = modeFor(account), onScreen = visible.has(account.id);
     if (mode === 'suspended') {
       destroyView(account.id, true);
-      setStatus(account.id, { sleeping: true, loading: false, error: '' });
+      setStatus(account.id, { queued: false, sleeping: true, loading: false, error: '' });
       continue;
     }
     if (mode === 'always' || onScreen) {
       clearTimeout(idleTimers.get(account.id)); idleTimers.delete(account.id);
-      const wasMissing = !views.has(account.id);
-      const view = makeView(account);
-      if (wasMissing) setStatus(account.id, { sleeping: false, loading: true, error: '' });
+      const view = views.get(account.id);
+      if (!view) {
+        setStatus(account.id, { queued: true, sleeping: false, loading: false, error: '' });
+        continue;
+      }
       if (view.activityMode !== mode) {
         view.webContents.setBackgroundThrottling(mode !== 'always');
         view.activityMode = mode;
@@ -266,6 +302,7 @@ function refreshViews() {
         if (attached) windowMain.contentView.removeChildView(view);
       }
     } else {
+      if (viewStatuses.get(account.id)?.queued) setStatus(account.id, { queued: false });
       const view = views.get(account.id);
       if (!view) continue;
       view.onScreen = false;
@@ -536,16 +573,18 @@ function registerIPC() {
     accountById(id).activity = mode; publish(); return { ok: true };
   });
   listen('view:reload', (id, ignoreCache = false) => {
-    const a = accountById(id); const v = makeView(a);
+    const a = accountById(id); const existed = views.has(id); const v = makeView(a);
     if (!v) throw new Error(T('Retome a conta suspensa primeiro.'));
-    if (ignoreCache) v.webContents.reloadIgnoringCache();
-    else v.webContents.reload();
+    if (existed) {
+      if (ignoreCache) v.webContents.reloadIgnoringCache();
+      else v.webContents.reload();
+    }
     return { ok: true };
   });
   listen('view:home', (id) => {
-    const a = accountById(id), v = makeView(a);
+    const a = accountById(id), existed = views.has(id), v = makeView(a);
     if (!v) throw new Error(T('Retome a conta suspensa primeiro.'));
-    v.webContents.loadURL(a.url).catch(() => {}); return { ok: true };
+    if (existed) v.webContents.loadURL(a.url).catch(() => {}); return { ok: true };
   });
   listen('view:mute', (id) => {
     const a = accountById(id); a.muted = !a.muted;
@@ -620,6 +659,7 @@ function registerIPC() {
       if (x + width > ww + 2 || y + height > wh + 2) continue;
       boundsForAccounts.set(rect.id, { x, y, width, height });
     }
+    layoutReady = true;
     refreshViews();
     // A trusted renderer layout after ready-to-show confirms an interactive,
     // visible interface instead of merely acknowledging the document load.
@@ -628,6 +668,8 @@ function registerIPC() {
 }
 
 function createMainWindow() {
+  layoutReady = false;
+  windowShown = false;
   windowMain = new BrowserWindow({
     width: 1500, height: 950, minWidth: 780, minHeight: 500,
     show: false,
@@ -645,7 +687,10 @@ function createMainWindow() {
   // Wait for the first frame before showing a window launched by the hidden
   // update worker. Showing its unpainted surface can leave it blank until resize.
   windowMain.once('ready-to-show', () => {
-    if (windowMain && !windowMain.isDestroyed()) windowMain.show();
+    if (windowMain && !windowMain.isDestroyed()) {
+      windowShown = true;
+      windowMain.show();
+    }
   });
   windowMain.loadFile(path.join(__dirname, 'index.html'));
   windowMain.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -704,4 +749,4 @@ if (ownsInstance) app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
-app.on('before-quit', () => { for (const id of [...views.keys()]) destroyView(id); });
+app.on('before-quit', () => { quitting = true; for (const id of [...views.keys()]) destroyView(id); });

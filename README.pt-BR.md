@@ -65,6 +65,10 @@ Cada conta usa o cache HTTP nativo do Chromium dentro de seu próprio perfil. Os
 
 Sempre ativa mantém as páginas carregadas e os timers sem limitação ao trocar de conta ou espaço. Cada jogo ativo continua usando sua própria CPU, RAM e GPU; várias contas podem reduzir o FPS disponível para a conta selecionada. Use Ativa quando visível ou Suspensa nas contas que não precisam continuar funcionando. A renderização Canvas pode pausar em contas ocultas ou com a janela minimizada, mesmo com os timers ativos. Mantenha o jogo visível se ele exigir renderização contínua; a progressão depende de como cada jogo lida com a atividade em segundo plano.
 
+Ao abrir o Astria, a conta visível selecionada inicia primeiro. As outras páginas visíveis usam uma pequena fila de carregamento; as contas Sempre ativas ocultas abrem uma por vez após terminar a navegação visível. Uma página lenta libera sua posição inicial na fila após dez segundos para não bloquear as demais indefinidamente. Selecionar uma conta na fila dá prioridade a ela. Os modos de atividade e as sessões salvas são preservados.
+
+Para abrir mais rápido após ligar o PC, mantenha a pasta portátil Astria inteira, incluindo Save, em um SSD. Um HD mecânico pode demorar mais enquanto o Windows ainda não tem os arquivos do programa e dos perfis em cache. Feche o Astria antes de mudar de local; não é necessário apagar caches ou perfis.
+
 ## Política do projeto e segurança
 
 O projeto oficial é mantido pelo proprietário. Pull requests, issues e discussões externas estão desativados. Outras pessoas podem baixar versões e ler o código público, mas não enviar alterações diretamente ao repositório oficial. O material público continua copiável conforme a licença incluída.

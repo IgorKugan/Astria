@@ -61,6 +61,7 @@ class BrowserWindowMock extends EventEmitter {
   loadFile(file) { this.file = file; this.webContents.mainFrame = { url: require('node:url').pathToFileURL(file).href }; }
   isDestroyed() { return this.destroyed; }
   isVisible() { return true; }
+  show() { this.emit('show'); }
   isMinimized() { return false; }
   setTitleBarOverlay() {}
   getContentSize() { return [1490, 900]; }
@@ -80,7 +81,7 @@ const script = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'ut
 vm.runInNewContext(script, {
   require: n => n === 'electron' ? mock : originalRequire(n.startsWith('.') ? path.resolve(__dirname,'../src',n) : n),
   __dirname: path.join(__dirname, '..', 'src'), console, process,
-  setInterval: () => 0, URL,
+  setInterval: () => 0, URL, setImmediate,
   setTimeout: fn => { const id = ++nextTimer; timers.set(id, fn); return id; },
   clearTimeout: id => timers.delete(id)
 }, { filename: 'main.js' });
@@ -93,6 +94,7 @@ const trustedEvent = () => ({ sender: mainWindow.webContents, senderFrame: mainW
 (async () => {
   await new Promise(resolve => setImmediate(resolve));
   assert.ok(mainWindow, 'main window exists');
+  mainWindow.emit('ready-to-show');
   assert.equal((await invoke('state:get')).state.workspaces[0].name, 'My games');
   assert.equal((await invoke('state:get')).state.preferences.language, 'en');
   assert.equal((await invoke('settings:language','pt-BR')).ok,true);
@@ -104,6 +106,8 @@ const trustedEvent = () => ({ sender: mainWindow.webContents, senderFrame: mainW
   assert.equal(ids.length, 2);
   events.get('layout:update')(trustedEvent(), ids.map((id, i) => ({id, x:260+i*550,y:100,width:520,height:550})));
   assert.equal(allViews.length, 2, 'one browser view per account');
+  // Renderers now start in foreground priority, rather than config order.
+  allViews.sort((a,b)=>ids.indexOf(a.partition.slice('persist:multinest-'.length))-ids.indexOf(b.partition.slice('persist:multinest-'.length)));
   assert.notEqual(allViews[0].partition, allViews[1].partition, 'isolated partition per account');
   assert.ok(allViews.every(v => v.partition.startsWith('persist:')));
   await new Promise(resolve => setImmediate(resolve));

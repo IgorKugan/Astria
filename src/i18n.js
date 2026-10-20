@@ -7,6 +7,7 @@
   else root.AstriaI18n = api;
 })(typeof window === 'object' ? window : globalThis, () => {
   const strings = {
+    'Aguardando carregamento…':'Waiting to load…',
     'Cache nativo independente por conta':'Native cache, separate for each account',
     'O cache dos jogos é separado por conta e fica dentro de Save. Várias contas ativas dividem os recursos da CPU e da GPU.':'Game caches are separate per account and stay inside Save. Multiple active accounts compete for CPU and GPU resources.',
     'A renderização Canvas pode pausar em contas ocultas ou com a janela minimizada, mesmo com os timers ativos. Mantenha o jogo visível se ele exigir renderização contínua.':'Canvas rendering can pause in hidden accounts or while the window is minimized even though timers remain active. Keep the game visible if it requires continuous rendering.',

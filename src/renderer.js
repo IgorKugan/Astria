@@ -44,7 +44,7 @@ async function call(action, ...args) {
 }
 function panelStatus(id) {
   const status = statuses[id] || {};
-  return status.error ? tr('Erro ao carregar') : status.loading ? tr('Carregando…') : '';
+  return status.error ? tr('Erro ao carregar') : status.queued ? tr('Aguardando carregamento…') : status.loading ? tr('Carregando…') : '';
 }
 function render() {
   if (!state) return;
@@ -253,7 +253,12 @@ api.onState(next=>{state=next;render();});
 api.onStatus(event=>{
   statuses[event.id]=event;
   const node=document.querySelector(`[data-panel="${event.id}"] .panel-state`);
-  if(node&&account(event.id)?.activity!=='suspended'){node.textContent=event.error?'!':event.loading?'◌':'';node.classList.toggle('error',!!event.error);node.classList.toggle('loading',!!event.loading);node.title=event.error||panelStatus(event.id);}
+  if(node&&account(event.id)?.activity!=='suspended'){
+    node.textContent=event.error?'!':event.queued?'◷':event.loading?'◌':'';
+    node.classList.toggle('error',!!event.error);node.classList.toggle('loading',!!event.loading);node.title=event.error||panelStatus(event.id);
+    const placeholder=document.querySelector(`[data-panel="${event.id}"] .panel-placeholder`);
+    if(placeholder)placeholder.textContent=event.queued?tr('Aguardando carregamento…'):h`Abrindo ${account(event.id).name}…`;
+  }
 });
 api.onMetrics(next=>{metrics=next;updateCosts();});
 api.onToast(toast);
