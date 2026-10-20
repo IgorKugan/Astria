@@ -6,7 +6,7 @@ Este projeto é mantido pelo proprietário. **Contribuições externas não são
 
 ## Owner: build and release
 
-Use Windows x64, Node.js 24 LTS and Git. Run `npm ci`, `npm test`, `npm run test:e2e` and `npm run test:shared`. `npm start` uses an ignored development profile under this checkout's Save/Profile; it does not open personal portable profiles.
+Use Windows x64, Node.js 24 LTS and Git. Run `npm ci`, `npm test`, `npm run test:e2e`, `npm run test:network` and `npm run test:activity`. `npm start` uses an ignored development profile under this checkout's Save/Profile; it does not open personal portable profiles.
 
 `npm run package:portable` creates a new versioned folder. Set `ASTRIA_TEST_AUTO_SAVE=1` for the noninteractive download fixture in `npm run test:portable`. Tests use temporary profiles and fixture accounts. Local UI tests use real mouse drags; hosted Windows CI exercises the document pointer fallback because its desktop may revoke pointer capture.
 

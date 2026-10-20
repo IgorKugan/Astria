@@ -37,7 +37,7 @@ Abra **☰ → Idioma → English / Português (Brasil)**. A escolha fica salva 
 
 | Modo | Comportamento |
 | --- | --- |
-| Sempre ativa | Continua em outros espaços e com a janela minimizada. Usa mais recursos. |
+| Sempre ativa | Mantém a página carregada e os timers ativos em outras contas e espaços. Usa mais recursos. Veja abaixo as limitações de renderização. |
 | Ativa quando visível | Reduz atividade em segundo plano e descarrega uma página oculta após um minuto. Ao voltar, reconecta o jogo. |
 | Suspensa | Descarrega imediatamente. Retomar reabre o mesmo perfil salvo. |
 
@@ -51,7 +51,6 @@ O Astria cria **Save** ao lado do executável ao abrir pela primeira vez:
 | --- | --- |
 | Profile | Configurações e perfis Chromium separados das contas |
 | Games | Arquivos/saves baixados ou exportados dos jogos |
-| SharedAssets | Recursos públicos anônimos reutilizáveis, até 2 GB no total e 16 MB por arquivo |
 | Backups | Exportações e programas anteriores das atualizações |
 | Updates | Preparação de atualizações verificadas e registros locais |
 | Temp, Logs, CrashDumps | Arquivos temporários e de diagnóstico |
@@ -60,7 +59,9 @@ Use **☰ → Abrir pasta Save**. `Save/LEIA-ME.txt` relaciona os nomes das cont
 
 O progresso online normalmente fica no servidor. Cookies protegidos pelo Windows podem exigir novo login em outro PC ou usuário. Exportar configuração inclui nomes, endereços e preferências, mas não cookies nem senhas. **Nunca compartilhe seu Save preenchido.** Distribua o ZIP limpo.
 
-Recursos estáticos públicos podem ser reutilizados quando o servidor permite cache. Downloads compartilhados são anônimos, exigem HTTPS público e usam o IPv4 público validado para impedir acesso à rede privada. APIs, credenciais, respostas privadas e armazenamento das contas não são compartilhados. Outras requisições, incluindo sites locais e exclusivos de IPv6, usam a rede nativa de cada perfil Chromium. O cache mantido pelo próprio jogo pode conter outros recursos.
+Cada conta usa o cache HTTP nativo do Chromium dentro de seu próprio perfil. Os arquivos dos jogos não são interceptados nem transferidos pelo processo principal do Astria. Isso pode usar mais disco que um cache compartilhado, mas evita essa etapa extra no carregamento. Pastas `Save/SharedAssets` de versões anteriores são preservadas, mas não são mais utilizadas. Todos os caches vão junto com Save.
+
+Sempre ativa mantém as páginas carregadas e os timers sem limitação ao trocar de conta ou espaço. Cada jogo ativo continua usando sua própria CPU, RAM e GPU; várias contas podem reduzir o FPS disponível para a conta selecionada. Use Ativa quando visível ou Suspensa nas contas que não precisam continuar funcionando. A renderização Canvas pode pausar em contas ocultas ou com a janela minimizada, mesmo com os timers ativos. Mantenha o jogo visível se ele exigir renderização contínua; a progressão depende de como cada jogo lida com a atividade em segundo plano.
 
 ## Política do projeto e segurança
 

@@ -5,7 +5,6 @@ const path = require('node:path');
 const os = require('node:os');
 const { generateKeyPairSync, createHash, sign } = require('node:crypto');
 const { Updates, newer, verifyManifest, extract, githubFetch } = require('../src/updates');
-const { trustedPublicURL, SharedAssets } = require('../src/shared-assets');
 const hash = value => createHash('sha256').update(value).digest('hex');
 // Tiny stored-entry ZIP writer, including deliberately invalid paths for extraction tests.
 function fixtureZip(files) {
@@ -21,12 +20,7 @@ function fixtureZip(files) {
 }
 (async () => {
   assert.equal(newer('1.10.0','1.9.9'),true); assert.equal(newer('1.5.0','1.5.0'),false); assert.equal(newer('1.4.9','1.5.0'),false); assert.equal(newer('../x','1.0.0'),false);
-  for (const url of ['http://game.example.com/main.js','http://127.0.0.1/a.js','https://evil.test/a.js','https://game.local/a.js','https://game.example.com:8443/a.js']) assert.equal(trustedPublicURL(new URL(url)),false,url);
-  assert.equal(trustedPublicURL(new URL('https://cdn.example.com/data/map.gat')),true);
   const directory=fs.mkdtempSync(path.join(os.tmpdir(),'astria-update-'));
-  let network=0;
-  const shared=new SharedAssets(path.join(directory,'cache'),{ fetch:async()=>{network++;throw new Error('Unexpected private network request');} });
-  assert.equal(await shared.lookup(new Request('http://127.0.0.1/private.png')),null); assert.equal(network,0);
   const { publicKey, privateKey }=generateKeyPairSync('ed25519');
   const files={'Astria.exe':'fixture exe','resources/app.asar':'fixture asar','portable.flag':'portable'};
   const zipFiles=Object.fromEntries(Object.entries(files).map(([p,v])=>['Astria-Portable-1.5.0/'+p,v]));
@@ -59,5 +53,5 @@ function fixtureZip(files) {
     failed.ready={helper:badHelper,jobPath:path.join(directory,'failed.json')};
     await assert.rejects(failed.install(),/preparar/);
   }
-  console.log('PASS: signed updates, anti-downgrade version check, tamper detection, bounded extraction, traversal/private-path rejection, update host restrictions and shared-cache host isolation');
+  console.log('PASS: signed updates, anti-downgrade version check, tamper detection, bounded extraction, traversal/private-path rejection and update host restrictions');
 })().catch(error=>{console.error(error);process.exitCode=1;});

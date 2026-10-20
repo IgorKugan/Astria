@@ -38,7 +38,7 @@ async function until(fn, description) {
   throw new Error('Timeout: ' + description);
 }
 async function launch() {
-  const env = { ASTRIA_TEST_ASSETS: '1', ...process.env };
+  const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
   delete env.MULTINEST_USER_DATA;
   application = await electron.launch({ executablePath: path.join(directory, 'Astria.exe'), env });
@@ -79,7 +79,9 @@ async function inView(id, script) {
     await inView(ids[i], `(async()=>{document.cookie='portable=${i}; Max-Age=86400; Path=/'; localStorage.setItem('portable','${i}'); await new Promise((resolve,reject)=>{const r=indexedDB.open('portable',1); r.onupgradeneeded=()=>r.result.createObjectStore('data');r.onsuccess=()=>{const db=r.result;const t=db.transaction('data','readwrite');t.objectStore('data').put('${i}','identity');t.oncomplete=()=>{db.close();resolve();};t.onerror=()=>reject(t.error);};r.onerror=()=>reject(r.error);});await(await caches.open('portable')).put('/portable',new Response('${i}'));return true;})()`);
   }
   const account = (await page.evaluate(() => window.multiNest.getState())).state.accounts[0];
-  assert.equal(assetDownloads, 1, 'one shared asset across two portable accounts');
+  if (process.env.ASTRIA_OLD_PORTABLE) assert.ok(assetDownloads >= 1 && assetDownloads <= 2, 'previous version loaded both fixture accounts');
+  else assert.equal(assetDownloads, 2, 'native cache stays separate for each portable account');
+  const initialDownloads = assetDownloads;
   const location = await application.evaluate(({ session }, id) => session.fromPartition('persist:multinest-' + id).storagePath, account.id);
   assert.equal(location, path.join(directory, 'Save', 'Profile', 'Partitions', 'multinest-' + account.id));
   if (!process.env.ASTRIA_TEST_AUTO_SAVE) console.log('Native download check: confirm Save in the saved-game.json dialog (default folder: Save\\Games).');
@@ -127,11 +129,11 @@ async function inView(id, script) {
     assert.deepEqual(stored, { cookie: 'portable=' + i, local: String(i), indexed: String(i), cache: String(i) });
   }
   assert.ok(fs.existsSync(path.join(directory, 'Save', 'Games', 'saved-game.json')));
-  if (process.env.ASTRIA_OLD_PORTABLE) assert.ok(assetDownloads <= 2, 'a changed app user-agent may refresh an asset once after an upgrade');
-  else assert.equal(assetDownloads, 1, 'shared public files also move with the application');
+  if (process.env.ASTRIA_OLD_PORTABLE) assert.ok(assetDownloads <= initialDownloads + 2, 'upgrading to native cache may download once per account');
+  else assert.equal(assetDownloads, 2, 'both per-account caches move without redownload');
   for (const id of ids) assert.equal(await inView(id, 'window.portableAsset'), 'shared');
   fs.mkdirSync(path.join(root, 'test-results'), { recursive: true });
-  fs.writeFileSync(path.join(root, 'test-results', 'astria-portable.json'), JSON.stringify({ passed: true, version, testRoot, movedTo: directory, checks: ['no installer', 'relative Save folder', 'temporary paths inside Save', 'downloads to Games', 'account data guide', 'open Save menu', 'config export path', 'folder relocation with spaces and Unicode', 'cookie isolation and persistence', 'localStorage', 'IndexedDB', 'CacheStorage', 'saved game file preserved', 'shared public files moved without redownload'] }, null, 2));
+  fs.writeFileSync(path.join(root, 'test-results', 'astria-portable.json'), JSON.stringify({ passed: true, version, testRoot, movedTo: directory, checks: ['no installer', 'relative Save folder', 'temporary paths inside Save', 'downloads to Games', 'account data guide', 'open Save menu', 'config export path', 'folder relocation with spaces and Unicode', 'cookie isolation and persistence', 'localStorage', 'IndexedDB', 'CacheStorage', 'saved game file preserved', 'native per-account caches moved without redownload'] }, null, 2));
   console.log('PASS: portable Save paths, game downloads, menu and backup export');
   console.log('PASS: moved folder preserves two isolated profiles, cookies, localStorage, IndexedDB and CacheStorage');
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(async () => {

@@ -7,7 +7,6 @@ const { randomUUID } = require('node:crypto');
 const { isInterfaceURL } = require('./trusted-ui');
 const { pageMetrics } = require('./metrics');
 const { configureStorage, writeAccountGuide } = require('./storage');
-const { SharedAssets } = require('./shared-assets');
 const { Updates } = require('./updates');
 const releaseConfig = require('./release-config.json');
 const appVersion = require('../package.json').version;
@@ -28,7 +27,6 @@ const T = (value, ...values) => typeof value === 'string' ? I18n.translate(value
 let configPath;
 let overlayOpen = false;
 let metricsTimer;
-let sharedAssets;
 let updates;
 const views = new Map();
 const viewStatuses = new Map();
@@ -162,7 +160,7 @@ function makeView(account) {
       javascript: true
     }
   });
-  sharedAssets?.attachView(view.webContents);
+  view.activityMode = modeFor(account);
   views.set(account.id, view);
   view.setBounds({ x: 0, y: 0, width: 1, height: 1 });
   view.webContents.setAudioMuted(!!account.muted);
@@ -214,7 +212,7 @@ function makeView(account) {
       else view.webContents.reload();
     }
   });
-  Promise.resolve(sharedAssets?.prepare(siteSession)).then(() => {
+  Promise.resolve().then(() => {
     if (views.get(account.id) === view && !view.webContents.isDestroyed()) return view.webContents.loadURL(account.url);
   }).catch(err => setStatus(account.id, { error: err.message, loading: false }));
   return view;
@@ -253,8 +251,12 @@ function refreshViews() {
       const wasMissing = !views.has(account.id);
       const view = makeView(account);
       if (wasMissing) setStatus(account.id, { sleeping: false, loading: true, error: '' });
-      view.webContents.setBackgroundThrottling(mode !== 'always');
+      if (view.activityMode !== mode) {
+        view.webContents.setBackgroundThrottling(mode !== 'always');
+        view.activityMode = mode;
+      }
       const attached = windowMain.contentView.children.includes(view);
+      view.onScreen = onScreen && !overlayOpen;
       if (onScreen && !overlayOpen) {
         view.setBounds(boundsForAccounts.get(account.id));
         view.setVisible(true);
@@ -266,7 +268,11 @@ function refreshViews() {
     } else {
       const view = views.get(account.id);
       if (!view) continue;
-      view.webContents.setBackgroundThrottling(true);
+      view.onScreen = false;
+      if (view.activityMode !== mode) {
+        view.webContents.setBackgroundThrottling(true);
+        view.activityMode = mode;
+      }
       view.setVisible(false);
       if (windowMain.contentView.children.includes(view)) windowMain.contentView.removeChildView(view);
       if (!idleTimers.has(account.id)) {
@@ -286,7 +292,7 @@ function refreshViews() {
 function visibleViews() {
   if (!windowMain || windowMain.isDestroyed() || !windowMain.isVisible() || windowMain.isMinimized() || overlayOpen) return [];
   const attached = windowMain.contentView.children;
-  return [...views].filter(([, view]) => attached.includes(view) && !view.webContents.isDestroyed());
+  return [...views].filter(([, view]) => attached.includes(view) && view.onScreen && !view.webContents.isDestroyed());
 }
 
 function scheduleMetrics(delay = 200) {
@@ -418,7 +424,7 @@ function showAppMenu(point) {
     { type: 'separator' },
     { label: T('Desempenho'), submenu: [
       { label: T`${views.size} painéis carregados · ~${memory} MB no aplicativo`, enabled: false },
-      ...(sharedAssets ? [{ label: T`Cache público: ${sharedAssets.stats.hits} reutilizações · ${(sharedAssets.stats.savedBytes / 1048576).toFixed(1)} MB poupados nesta execução`, enabled: false }] : []),
+      { label: T('Cache nativo independente por conta'), enabled: false },
       { label: T('Ativa quando visível economiza RAM após 1 minuto'), enabled: false },
       { label: T('Suspender descarrega o painel imediatamente'), enabled: false },
       { label: T('Sobre os modos…'), click: () => uiCommand('performance-help') }
@@ -671,14 +677,12 @@ app.on('second-instance', () => {
 });
 
 if (ownsInstance) app.whenReady().then(() => {
-  // Test fixtures use loopback; normal downloads require DNS-pinned public HTTPS.
-  const testAssets = process.env.ASTRIA_TEST_ASSETS === '1' ? { allowURL: url => ['127.0.0.1', 'localhost'].includes(url.hostname), fetch: globalThis.fetch } : {};
-  sharedAssets = new SharedAssets(storage.assets || path.join(app.getPath('userData'), 'SharedAssets'), testAssets);
   updates = new Updates({ storage, currentVersion: appVersion, ...releaseConfig });
   session.defaultSession?.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
   session.defaultSession?.setPermissionCheckHandler(() => false);
   session.defaultSession?.setDevicePermissionHandler?.(() => false);
   state = loadState();
+  // Game requests use Chromium's per-account cache without request interception.
   writeAccountGuide(storage, state);
   nativeTheme.themeSource = state.preferences.theme;
   registerIPC(); createMainWindow();

@@ -25,7 +25,7 @@ async function waitUntil(fn, description) {
   throw new Error('Timeout: ' + description);
 }
 async function launch() {
-  const env = { ASTRIA_TEST_ASSETS: '1', ...process.env, MULTINEST_USER_DATA: profile, ASTRIA_IDLE_MS: '500' };
+  const env = { ...process.env, MULTINEST_USER_DATA: profile, ASTRIA_IDLE_MS: '500' };
   delete env.ELECTRON_RUN_AS_NODE;
   application = await electron.launch({ executablePath: process.env.MULTINEST_TEST_EXE || require('electron'), args: process.env.MULTINEST_TEST_EXE ? ['--user-data-dir=' + profile] : [root], env });
   page = await application.firstWindow();
@@ -51,7 +51,7 @@ async function allSiteContents() {
 }
 async function getViews() {
   return application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children
-    .filter(v => v.webContents).map(v => ({ id: v.webContents.id, bounds: v.getBounds(), url: v.webContents.getURL() })));
+    .filter(v => v.webContents && v.onScreen).map(v => ({ id: v.webContents.id, bounds: v.getBounds(), url: v.webContents.getURL() })));
 }
 async function inView(id, script) {
   return application.evaluate(({ webContents }, { id, script }) => new Promise((resolve,reject)=>{
@@ -95,6 +95,7 @@ async function readStorage(id) {
   for (let i = 1; i <= 2; i++) await addAccount('Conta ' + i, url + '#fixture-' + i);
   await waitUntil(async () => (await getViews()).length === 2, 'two browser panels');
   let views = await getViews();
+  assert.equal(await application.evaluate(({webContents})=>webContents.getAllWebContents().filter(w=>/^http:/.test(w.getURL())).some(w=>w.debugger.isAttached())),false,'native cache does not attach the asset debugger');
   for (let i = 0; i < views.length; i++) {
     await waitUntil(async () => (await inView(views[i].id, 'document.readyState')) === 'complete', 'loaded panel');
     const identity = 'account-' + i;
@@ -240,6 +241,7 @@ async function readStorage(id) {
   }
   const restored = (await page.evaluate(() => window.multiNest.getState())).state;
   assert.equal(restored.preferences.language,'pt-BR','chosen language survives restart');
+  assert.equal(await application.evaluate(({webContents})=>webContents.getAllWebContents().filter(w=>/^http:/.test(w.getURL())).some(w=>w.debugger.isAttached())),false,'native networking remains free of asset interception after restart');
   const idsBeforeLanguage=restored.accounts.map(a=>a.id);
   const restoredFirstLink=page.locator('.account-link').first();
   await appMenu('Idioma','English');

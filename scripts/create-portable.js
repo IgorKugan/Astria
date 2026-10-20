@@ -8,7 +8,7 @@ const destination = path.join(root, 'dist', `Astria-Portable-${version}`);
 if (fs.existsSync(destination)) throw new Error('A pasta de destino ja existe. Preserve os dados antes de gerar outra copia: ' + destination);
 fs.cpSync(source, destination, { recursive: true, errorOnExist: true, force: false });
 fs.writeFileSync(path.join(destination, 'portable.flag'), 'Astria portable mode. Keep this file beside Astria.exe.\r\n');
-for (const folder of ['Profile', 'Games', 'Backups', 'SharedAssets', 'Temp', 'Logs', 'CrashDumps']) fs.mkdirSync(path.join(destination, 'Save', folder), { recursive: true });
+for (const folder of ['Profile', 'Games', 'Backups', 'Temp', 'Logs', 'CrashDumps']) fs.mkdirSync(path.join(destination, 'Save', folder), { recursive: true });
 fs.copyFileSync(path.join(root, 'docs', 'PORTABLE.txt'), path.join(destination, 'LEIA-ME.txt'));
 fs.copyFileSync(path.join(root, 'docs', 'PORTABLE.txt'), path.join(destination, 'Save', 'LEIA-ME.txt'));
 console.log('Portable folder: ' + destination);

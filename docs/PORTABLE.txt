@@ -18,7 +18,8 @@ Astria.exe must be beside Save, not in another nested version folder.
 DATA
 Save\Profile: settings and separate browser account profiles.
 Save\Games: saves and files downloaded/exported from games.
-Save\SharedAssets: reusable anonymous public files (2 GB total, 16 MB per file).
+Game HTTP caches stay inside each account's Profile folder.
+Old Save\SharedAssets folders are preserved but no longer used.
 Save\Backups: configuration exports and previous programs from updates.
 Save\Updates: verified update staging and local update logs.
 Save\Temp, Logs, CrashDumps: temporary and diagnostic files.

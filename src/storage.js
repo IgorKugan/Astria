@@ -24,8 +24,7 @@ function configureStorage(app, { execPath = process.execPath, env = process.env 
   const logs = path.join(root, 'Logs');
   const crashes = path.join(root, 'CrashDumps');
   const temp = path.join(root, 'Temp');
-  const assets = path.join(root, 'SharedAssets');
-  for (const folder of [profile, games, backups, logs, crashes, temp, assets]) fs.mkdirSync(folder, { recursive: true });
+  for (const folder of [profile, games, backups, logs, crashes, temp]) fs.mkdirSync(folder, { recursive: true });
   // Set before ready: Chromium storage, logs and downloads follow the executable.
   app.setPath('userData', profile);
   app.setPath('sessionData', profile);
@@ -36,7 +35,7 @@ function configureStorage(app, { execPath = process.execPath, env = process.env 
   env.TEMP = temp;
   env.TMP = temp;
   app.setAppLogsPath(logs);
-  return { portable: true, root, profile, games, backups, temp, assets };
+  return { portable: true, root, profile, games, backups, temp };
 }
 
 function writeAccountGuide(storage, state) {
@@ -47,7 +46,9 @@ function writeAccountGuide(storage, state) {
     'Games: arquivos de save que voce exportou/baixou dentro dos jogos.',
     'Profile: configuracao, cookies, IndexedDB e outros dados locais dos sites.',
     'Backups: pasta livre para guardar suas copias de seguranca.',
-    'SharedAssets: arquivos publicos dos jogos, reutilizados entre as contas.',
+    'O cache dos jogos fica dentro de Profile, separado por conta.',
+    'Game caches are inside Profile, separate for each account.',
+    'SharedAssets: cache de versoes antigas; preservado, mas nao utilizado.',
     'Temp: temporarios do Astria, mantidos nesta pasta.',
     '',
     'Para transferir: feche o Astria e copie a pasta Astria inteira, incluindo Save.',

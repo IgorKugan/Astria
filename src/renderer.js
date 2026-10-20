@@ -159,7 +159,14 @@ function confirmImport() {
   modal(h`<h2 id="modal-title">Importar configuração</h2><p class="sub">Substitui a lista atual de espaços e contas. O arquivo não inclui cookies nem senhas.</p><div class="modal-actions"><button class="secondary" data-close>Cancelar</button><button class="primary" id="confirm-import">Escolher arquivo</button></div>`,()=>{el('confirm-import').onclick=async()=>{const r=await call(api.import);if(r.ok){closeModal();if(!r.canceled)toast(tr('Configuração importada.'));}};});
 }
 function performanceHelp() {
-  modal(h`<h2 id="modal-title">Atividade das contas</h2><p class="sub"><strong>Sempre ativa</strong><br>Continua carregada e funcionando ao trocar de conta, espaço ou minimizar. Usa mais recursos.</p><p class="sub"><strong>Ativa quando visível</strong><br>Reduz a atividade quando oculta. Após um minuto, descarrega a página para liberar RAM. Ao voltar, o jogo reconecta.</p><p class="sub"><strong>Suspensa</strong><br>Descarrega imediatamente. Use Retomar conta para abrir novamente com o perfil salvo.</p><p class="small-note">Descarregar pode interromper a atividade online do jogo. A progressão offline depende de cada jogo. Escolha o modo no botão direito da conta.</p><div class="modal-actions"><button class="primary" data-close>Entendi</button></div>`);
+  modal(h`<h2 id="modal-title">Atividade das contas</h2>
+    <p class="sub"><strong>Sempre ativa</strong><br>Mantém a página carregada e os timers ativos ao trocar de conta ou espaço. Usa mais recursos.</p>
+    <p class="sub"><strong>Ativa quando visível</strong><br>Reduz a atividade quando oculta. Após um minuto, descarrega a página para liberar RAM. Ao voltar, o jogo reconecta.</p>
+    <p class="sub"><strong>Suspensa</strong><br>Descarrega imediatamente. Use Retomar conta para abrir novamente com o perfil salvo.</p>
+    <p class="small-note">O cache dos jogos é separado por conta e fica dentro de Save. Várias contas ativas dividem os recursos da CPU e da GPU.</p>
+    <p class="small-note">A renderização Canvas pode pausar em contas ocultas ou com a janela minimizada, mesmo com os timers ativos. Mantenha o jogo visível se ele exigir renderização contínua.</p>
+    <p class="small-note">Descarregar pode interromper a atividade online do jogo. A progressão offline depende de cada jogo. Escolha o modo no botão direito da conta.</p>
+    <div class="modal-actions"><button class="primary" data-close>Entendi</button></div>`);
 }
 function updateDialog() {
   modal(h`<h2 id="modal-title">Atualizar Astria</h2><p id="update-status" class="sub" role="status">Verificando a última versão no GitHub…</p><p class="small-note">O download é verificado com a assinatura do Astria. Seus perfis e a pasta Save são preservados. Reiniciar desconecta temporariamente os jogos.</p><div class="modal-actions"><button class="secondary" data-close>Fechar</button><button id="update-action" class="primary" disabled>Verificando…</button></div>`, async () => {

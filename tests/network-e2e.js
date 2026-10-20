@@ -8,7 +8,7 @@ const { gzipSync } = require('node:zlib');
 const { createHash } = require('node:crypto');
 const { _electron: electron } = require('playwright');
 const root = path.resolve(__dirname, '..');
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'asc-'));
+const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'an-'));
 const requests = [];
 let app, page, base;
 const server = http.createServer((req, res) => {
@@ -44,7 +44,7 @@ async function until(fn, description) {
   throw new Error('Timeout: ' + description);
 }
 async function launch() {
-  const env = { ASTRIA_TEST_ASSETS: '1', ...process.env, MULTINEST_USER_DATA: profile }; delete env.ELECTRON_RUN_AS_NODE;
+  const env = { ...process.env, MULTINEST_USER_DATA: profile }; delete env.ELECTRON_RUN_AS_NODE;
   app = await electron.launch({ executablePath: process.env.MULTINEST_TEST_EXE || require('electron'), args: process.env.MULTINEST_TEST_EXE ? ['--user-data-dir=' + profile] : [root], env });
   page = await app.firstWindow(); await page.waitForSelector('#grid .empty, #grid .panel');
   await app.evaluate(({ app }) => { globalThis.fixtureErrors = []; app.on('web-contents-created', (_e, w) => w.on('console-message', (...args) => globalThis.fixtureErrors.push(args.map(a => typeof a === 'string' ? a : a?.message || '').join(' ')))); });
@@ -57,7 +57,7 @@ async function inView(id, script) { return app.evaluate(({ webContents }, { id, 
   for (let i = 0; i < 2; i++) assert.equal((await page.evaluate(url => window.multiNest.accountAdd({ name: 'Isolated', url }), base)).ok, true);
   let ids = await until(async () => { const value = await views(); return value.length === 2 && value; }, 'two loaded pages');
   for (const id of ids) assert.equal(await inView(id, 'window.sharedGameAsset'), 'ok');
-  assert.equal(requests.filter(r => r.path === '/assets/shared.js?v=1').length, 1, 'shared script downloaded once across two accounts');
+  assert.equal(requests.filter(r => r.path === '/assets/shared.js?v=1').length, 2, 'native script cached independently for each account');
   for (let i = 0; i < ids.length; i++) {
     await inView(ids[i], `document.cookie='identity=${i};Max-Age=3600;Path=/';true`);
     assert.equal((await inView(ids[i], 'fetch("/api/who").then(r=>r.json())')).cookie, 'identity=' + i);
@@ -75,7 +75,7 @@ async function inView(id, script) { return app.evaluate(({ webContents }, { id, 
     const workerResult = await inView(ids[i], 'new Promise((resolve,reject)=>{const w=new Worker("/assets/worker.js");w.onmessage=e=>{resolve(e.data);w.terminate();};w.onerror=e=>reject(new Error(e.message));w.postMessage("load");})');
     assert.ok(workerResult.includes('sharedGameAsset'));
   }
-  assert.equal(requests.filter(r => r.path === '/assets/worker.js').length, 1, 'worker scripts share the common cache');
+  assert.equal(requests.filter(r => r.path === '/assets/worker.js').length, 2, 'workers use their own account cache');
   const anonymous = requests.filter(r => r.path === '/assets/shared.js?v=1');
   assert.ok(anonymous.every(r => !r.cookie && !r.authorization));
   const before = anonymous.length;
@@ -83,8 +83,8 @@ async function inView(id, script) { return app.evaluate(({ webContents }, { id, 
   assert.equal(await app.evaluate(({ webContents }, id) => webContents.fromId(id).getURL(), ids[0]), base + '/after-login');
   await app.close(); app = null;
   await launch(); ids = await until(async () => { const value = await views(); return value.length === 2 && value; }, 'restart');
-  assert.equal(requests.filter(r => r.path === '/assets/shared.js?v=1').length, before, 'common cache persists across restart');
+  assert.equal(requests.filter(r => r.path === '/assets/shared.js?v=1').length, before, 'both native caches persist across restart');
   for (let i = 0; i < ids.length; i++) assert.match(await inView(ids[i], 'document.cookie'), new RegExp('fixture=user' + i));
-  fs.writeFileSync(path.join(root, 'test-results', 'astria-shared-cache.json'), JSON.stringify({ passed: true, checks: ['one anonymous asset download for two accounts', 'private API cookies isolated', 'credential omission respected', 'compressed private responses', 'WebSocket session isolation', 'worker asset sharing', 'private asset bypass', 'Set-Cookie asset bypass', 'POST login and redirect', 'document redirect URL preserved', 'session cookies preserved on restart', 'shared assets preserved on restart'] }, null, 2));
-  console.log('PASS: shared anonymous assets downloaded once; private requests, POST login, redirects and cookies isolated across restart');
+  fs.writeFileSync(path.join(root, 'test-results', 'astria-native-cache.json'), JSON.stringify({ passed: true, checks: ['separate native HTTP caches', 'private API cookies isolated', 'credential omission respected', 'compressed private responses', 'WebSocket session isolation', 'worker cache isolation', 'private responses', 'Set-Cookie responses', 'POST login and redirect', 'document redirect URL preserved', 'session cookies preserved on restart', 'both native caches preserved on restart'] }, null, 2));
+  console.log('PASS: native per-account caches, private requests, workers, WebSockets, POST login, redirects and cookies isolated across restart');
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(async () => { if (app) await app.close(); server.close(); });

@@ -7,6 +7,9 @@
   else root.AstriaI18n = api;
 })(typeof window === 'object' ? window : globalThis, () => {
   const strings = {
+    'Cache nativo independente por conta':'Native cache, separate for each account',
+    'O cache dos jogos é separado por conta e fica dentro de Save. Várias contas ativas dividem os recursos da CPU e da GPU.':'Game caches are separate per account and stay inside Save. Multiple active accounts compete for CPU and GPU resources.',
+    'A renderização Canvas pode pausar em contas ocultas ou com a janela minimizada, mesmo com os timers ativos. Mantenha o jogo visível se ele exigir renderização contínua.':'Canvas rendering can pause in hidden accounts or while the window is minimized even though timers remain active. Keep the game visible if it requires continuous rendering.',
     'Meus jogos':'My games','Espaços e contas':'Workspaces and accounts','Espaços':'Workspaces','Espaço':'Workspace','Contas':'Accounts','Conta':'Account',
     'Novo espaço':'New workspace','Novo espaço…':'New workspace…','Nova conta':'New account','Nova conta…':'New account…',
     'Editar espaço':'Edit workspace','Editar espaço…':'Edit workspace…','Criar espaço':'Create workspace','Nome do jogo ou grupo':'Game or group name',
@@ -16,7 +19,7 @@
     'Suspender agora · liberar RAM':'Suspend now · release memory','Quando oculta: descarrega após 1 minuto':'When hidden: unloads after one minute','Ao retomar, o jogo reconecta':'Resuming reconnects the game',
     'Atividade das contas':'Account activity','Atividade de ':'Activity for ','Atividade':'Activity','Retomar conta':'Resume account',' está suspensa':' is suspended',
     'A página foi descarregada para liberar RAM. Retomar abre o jogo com o perfil salvo.':'The page was unloaded to release memory. Resume reopens it with the saved profile.',
-    'Continua carregada e funcionando ao trocar de conta, espaço ou minimizar. Usa mais recursos.':'Keeps running when switching accounts, workspaces or minimizing. Uses more resources.',
+    'Mantém a página carregada e os timers ativos ao trocar de conta ou espaço. Usa mais recursos.':'Keeps the page loaded and timers active when switching accounts or workspaces. Uses more resources.',
     'Reduz a atividade quando oculta. Após um minuto, descarrega a página para liberar RAM. Ao voltar, o jogo reconecta.':'Reduces background activity. After one minute hidden, unloads the page to release memory. Showing it reconnects the game.',
     'Descarrega imediatamente. Use Retomar conta para abrir novamente com o perfil salvo.':'Unloads immediately. Use Resume account to reopen with the saved profile.',
     'Descarregar pode interromper a atividade online do jogo. A progressão offline depende de cada jogo. Escolha o modo no botão direito da conta.':'Unloading may interrupt online activity. Offline progress depends on the game. Right-click the account to choose its mode.',

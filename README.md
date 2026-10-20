@@ -37,7 +37,7 @@ Open **☰ → Language → English / Português (Brasil)**. The choice is saved
 
 | Mode | Behavior |
 | --- | --- |
-| Always active | Keeps running across workspaces and while minimized. Uses more resources. |
+| Always active | Keeps the page loaded and timers active across accounts and workspaces. Uses more resources. See rendering limitations below. |
 | Active when visible | Reduces background activity and unloads a hidden page after one minute. Showing it reconnects the game. |
 | Suspended | Unloads immediately. Resume reopens the same saved profile. |
 
@@ -51,7 +51,6 @@ Astria creates **Save** beside the executable on first launch:
 | --- | --- |
 | Profile | Settings and separate Chromium account profiles |
 | Games | Files/saves downloaded or exported from games |
-| SharedAssets | Reusable anonymous public assets, up to 2 GB total and 16 MB per file |
 | Backups | Configuration exports and previous programs from updates |
 | Updates | Verified update staging and local update logs |
 | Temp, Logs, CrashDumps | Temporary and diagnostic data |
@@ -60,7 +59,9 @@ Use **☰ → Open Save folder** to find your files. `Save/LEIA-ME.txt` maps acc
 
 Online progress normally stays on the game's server. Windows-protected cookies may require a new login on another PC or Windows user. Configuration export includes names, URLs and preferences, but no cookies or passwords. **Never distribute your populated Save folder.** Share the clean release ZIP.
 
-Public static assets may be reused between accounts when the server permits caching. Shared downloads are anonymous and require public HTTPS addresses. The checked public IPv4 address is pinned to prevent private-network requests. APIs, credentials, private responses and account storage are excluded. Other requests, including local and IPv6-only sites, use Chromium's native per-profile networking. A game's own private cache may still contain additional resources.
+Each account uses Chromium's native HTTP cache inside its own profile. Game files are not intercepted or transferred through Astria's main process. This can use more disk space than a shared cache, while avoiding that extra loading overhead. Existing `Save/SharedAssets` folders from older releases are preserved but no longer used. All account caches move with Save.
+
+Always active keeps pages loaded with timers unthrottled when switching accounts or workspaces. Every active game still needs its own CPU, RAM and GPU resources; running several can reduce the FPS available to the selected game. Use Active when visible or Suspended for accounts that do not need to keep running. Canvas rendering can pause in hidden accounts or while the window is minimized even though timers remain active. Keep the game visible if it requires continuous rendering; game progress depends on how that game handles background activity.
 
 ## Project policy and security
 
