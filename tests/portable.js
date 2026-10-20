@@ -37,6 +37,21 @@ async function until(fn, description) {
   }
   throw new Error('Timeout: ' + description);
 }
+async function relocate(from, to) {
+  for (const target of [from, to]) {
+    const relative = path.relative(testRoot, path.resolve(target));
+    assert.ok(relative && !relative.startsWith('..') && !path.isAbsolute(relative), 'relocation stays inside the temporary test folder');
+  }
+  const deadline = Date.now() + 10000;
+  for (;;) {
+    try { fs.renameSync(from, to); return; }
+    catch (error) {
+      // Windows can briefly retain executable/cache handles after app.quit().
+      if (!['EPERM', 'EACCES', 'EBUSY'].includes(error.code) || Date.now() >= deadline) throw error;
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+}
 async function launch() {
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
@@ -118,7 +133,7 @@ async function inView(id, script) {
     console.log('PASS: manual program-file replacement preserved the existing Save folder');
   }
   const relocated = path.join(testRoot, 'Cópia ~ 2');
-  fs.renameSync(directory, relocated);
+  await relocate(directory, relocated);
   directory = relocated;
   await launch();
   assert.equal(await application.evaluate(({app})=>app.getVersion()),version);
