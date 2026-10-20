@@ -48,7 +48,12 @@ async function advancing(label, requireFrames = false) {
   }
   await advancing('focus layout timers');
   async function selectedAnimating(label) {
-    const id = await application.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].contentView.children.find(v=>v.onScreen)?.webContents.id);
+    let id;
+    // IPC completes before the renderer reports its new layout bounds.
+    for(let i=0;i<100&&!id;i++) {
+      id=await application.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].contentView.children.find(v=>v.onScreen)?.webContents.id);
+      if(!id)await delay(50);
+    }
     assert.ok(id,label+': selected page attached');
     const before=await frames();await delay(700);const after=await frames();
     assert.ok(after[id].frames-before[id].frames>=5,label+': selected page draws frames');
