@@ -37,7 +37,7 @@
     'Cancelar':'Cancel','Salvar':'Save','Excluir':'Delete','Remover':'Remove','Remover ':'Remove ','Fechar':'Close','Entendi':'Got it',
     'Os painéis deste espaço serão removidos.':'The panels in this workspace will be removed.','O painel será removido.':'The panel will be removed.',
     ' Os perfis e logins salvos no computador serão preservados.':' Saved profiles and logins will be kept.',
-    'Atualizar':'Reload','Atualizar sem cache':'Reload without cache','Ativar áudio':'Unmute','Silenciar':'Mute','Aumentar':'Zoom in','Diminuir':'Zoom out','Restaurar 100%':'Reset to 100%',
+    'Atualizar':'Reload','Atualizar sem cache':'Reload without cache','Ativar áudio':'Unmute','Silenciar':'Mute','Áudio de ':'Audio for ','Aumentar':'Zoom in','Diminuir':'Zoom out','Restaurar 100%':'Reset to 100%',
     'Layout dos painéis':'Panel layout','Opções da conta':'Account options','Opções de ':'Options for ','Grade automática':'Auto grid','Colunas':'Columns','Linhas':'Rows','Uma conta por vez':'One account at a time',
     'Exportar configuração…':'Export configuration…','Importar configuração…':'Import configuration…','Importar configuração':'Import configuration',
     'Substitui a lista atual de espaços e contas. O arquivo não inclui cookies nem senhas.':'Replaces the current workspace and account list. The file contains no cookies or passwords.',

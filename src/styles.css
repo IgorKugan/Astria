@@ -7,3 +7,4 @@
 @container(max-width:460px){.metric-cpu{display:none}.panel-head{gap:3px}.activity-controls button{width:18px}}
 @container(max-width:330px){.reload-button{display:none}.panel-cost{font-size:9px}.panel-head{gap:2px}}
 @media(prefers-reduced-motion:reduce){.theme-thumb{transition:none}}
+.audio-toggle svg{width:15px;height:15px;pointer-events:none}.audio-toggle[aria-pressed=true]{color:var(--accent)}.audio-toggle[aria-pressed=false]{color:var(--muted);background:var(--raised)}

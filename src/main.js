@@ -246,6 +246,7 @@ function makeView(account) {
   });
   view.webContents.on('did-create-window', child => {
     view.popups.add(child);
+    child.webContents.setAudioMuted(!!accountById(account.id).muted);
     child.on('closed', () => view.popups.delete(child));
     child.webContents.on('will-navigate', allowWebNavigation);
     child.webContents.on('will-redirect', allowWebNavigation);
@@ -663,7 +664,13 @@ function registerIPC() {
   });
   listen('view:mute', (id) => {
     const a = accountById(id); a.muted = !a.muted;
-    const view = views.get(id); if (view) view.webContents.setAudioMuted(a.muted);
+    const view = views.get(id);
+    if (view) {
+      view.webContents.setAudioMuted(a.muted);
+      for (const child of view.popups) {
+        if (!child.webContents.isDestroyed()) child.webContents.setAudioMuted(a.muted);
+      }
+    }
     publish(); return { ok: true };
   });
   listen('view:zoom', (id, delta) => {

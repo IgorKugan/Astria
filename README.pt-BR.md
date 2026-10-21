@@ -37,6 +37,7 @@ Abra **☰ → Idioma → English / Português (Brasil)**. A escolha fica salva 
 - Selecionar uma conta ou espaço transfere o foco do teclado ao jogo visível. Você pode usar os controles sem clicar novamente na página; diálogos e campos de chat mantêm seu próprio foco.
 - Ctrl+W, Ctrl+Shift+W e Alt+W não fecham o Astria nem suas janelas de jogos. Use o botão Fechar da janela para sair.
 - Clique com o botão direito para renomear, escolher cor, ajustar som/zoom ou mudar a atividade.
+- Clique no alto-falante ao lado do indicador de RAM/CPU do painel para ativar ou silenciar o áudio daquela conta, incluindo seus popups. O alto-falante riscado indica áudio silenciado. Cada conta mantém essa escolha após reiniciar.
 - Arraste a borda da lateral para mudar a largura. A barra de cada painel tem layout, tema e uso aproximado de RAM/CPU.
 
 | Modo | Comportamento |

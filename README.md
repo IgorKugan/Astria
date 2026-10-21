@@ -37,6 +37,7 @@ Open **☰ → Language → English / Português (Brasil)**. The choice is saved
 - Selecting an account or workspace sends keyboard focus to its visible game. You can use its controls without clicking inside the page again; dialogs and game chat fields keep their own focus.
 - Ctrl+W, Ctrl+Shift+W and Alt+W cannot close Astria or its game popups. Use the window's Close button to exit.
 - Right-click an account to rename it, choose a color, control sound/zoom or change its activity.
+- Click the speaker beside a panel's RAM/CPU indicator to mute or unmute that account, including its popups. The crossed speaker means muted. Each account remembers its audio setting after restarting.
 - Drag the sidebar edge to resize it. Panel headers contain layouts, theme switch and approximate page RAM/CPU usage.
 
 | Mode | Behavior |
