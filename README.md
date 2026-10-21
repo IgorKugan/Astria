@@ -34,6 +34,8 @@ Open **☰ → Language → English / Português (Brasil)**. The choice is saved
 
 - Use **+** to add a workspace or an account. Enter any browser game's HTTP/HTTPS URL and log in inside its page.
 - Each Astria account has its own cookies, localStorage, IndexedDB, CacheStorage and service workers.
+- Selecting an account or workspace sends keyboard focus to its visible game. You can use its controls without clicking inside the page again; dialogs and game chat fields keep their own focus.
+- Ctrl+W, Ctrl+Shift+W and Alt+W cannot close Astria or its game popups. Use the window's Close button to exit.
 - Right-click an account to rename it, choose a color, control sound/zoom or change its activity.
 - Drag the sidebar edge to resize it. Panel headers contain layouts, theme switch and approximate page RAM/CPU usage.
 
@@ -46,6 +48,8 @@ Open **☰ → Language → English / Português (Brasil)**. The choice is saved
 Unloading may disconnect a character. Offline progress depends on the game. Memory figures exclude shared app/GPU overhead. Compatibility depends on the website and its authentication requirements.
 
 ## Portable data
+
+Pages opened in the background start with a usable viewport, based on the visible panel, rather than a 1×1 surface. This lets games calculate their initial canvas, camera and interface at a normal size. Switching Always active accounts keeps the same page instance and its in-memory state; it does not reload or copy another account's data.
 
 Astria creates **Save** beside the executable on first launch:
 

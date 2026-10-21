@@ -32,6 +32,7 @@ let updates;
 let layoutReady = false;
 let windowShown = false;
 let quitting = false;
+let pendingAccountFocus;
 const views = new Map();
 const initialLoads = new Map();
 const viewStatuses = new Map();
@@ -45,6 +46,28 @@ const sidebarWidth = value => Math.max(44, Math.min(320, Math.round(value)));
 const idleDelay = !app.isPackaged && process.env.ASTRIA_IDLE_MS ? Math.max(50, Number(process.env.ASTRIA_IDLE_MS) || 60000) : 60000;
 const initialLoadLimit = !app.isPackaged && process.env.ASTRIA_INITIAL_LOAD_MS ? Math.max(100, Number(process.env.ASTRIA_INITIAL_LOAD_MS) || 10000) : 10000;
 const modeFor = account => activityModes.has(account.activity) ? account.activity : 'visible';
+
+// Do not let Electron's implicit Close accelerator quit all running games.
+// Apply the same rule to the local interface, game views and login popups.
+app.on('web-contents-created', (_event, contents) => {
+  contents.on('before-input-event', (event, input) => {
+    if (input.type === 'keyDown' && input.key?.toLowerCase() === 'w' && (input.control || input.alt || input.meta)) event.preventDefault();
+  });
+});
+
+function requestAccountFocus(id = state?.selectedAccountId, afterLayout = true) {
+  pendingAccountFocus = id ? { id, afterLayout } : undefined;
+}
+
+function focusRequestedAccount() {
+  if (!pendingAccountFocus || pendingAccountFocus.afterLayout || overlayOpen || !windowMain?.isFocused() || windowMain.isMinimized()) return;
+  const view = views.get(pendingAccountFocus.id);
+  if (!view?.onScreen || view.webContents.isDestroyed()) return;
+  // Consume the request once: metrics, resizing and state updates must not
+  // steal focus from a game's chat field or from Astria's dialogs.
+  pendingAccountFocus = undefined;
+  view.webContents.focus();
+}
 
 const initialConfig = () => ({
   version: 1,
@@ -179,7 +202,11 @@ function makeView(account) {
   // A broken/slow website must not hold the startup queue indefinitely.
   initialLoads.set(account.id, { view, timer: setTimeout(() => finishInitialLoad(account.id, view), initialLoadLimit) });
   setStatus(account.id, { queued: false, sleeping: false, loading: true, error: '' });
-  view.setBounds({ x: 0, y: 0, width: 1, height: 1 });
+  // Like a background browser tab, initialize at a real viewport size. A 1x1
+  // surface can leave games with incorrect initial cameras, maps or HUDs.
+  const [width, height] = windowMain.getContentSize();
+  const initialBounds = boundsForAccounts.get(account.id) || boundsForAccounts.get(state.selectedAccountId) || boundsForAccounts.values().next().value;
+  view.setBounds(initialBounds || { x: 0, y: 36, width, height: Math.max(75, height - 36) });
   view.webContents.setAudioMuted(!!account.muted);
   view.webContents.setZoomFactor(Number(account.zoom) || 1);
 
@@ -323,6 +350,7 @@ function refreshViews() {
       }
     }
   }
+  focusRequestedAccount();
   scheduleMetrics();
 }
 
@@ -508,6 +536,7 @@ function registerIPC() {
     if (!state.workspaces.some(w => w.id === id)) throw new Error(T('Espaço não encontrado.'));
     state.activeWorkspaceId = id;
     state.selectedAccountId = state.accounts.find(a => a.workspaceId === id)?.id || null;
+    requestAccountFocus();
     boundsForAccounts.clear(); publish(); return { ok: true };
   });
   listen('workspace:delete', (id) => {
@@ -534,6 +563,7 @@ function registerIPC() {
       color: normalizeColor(data?.color) || colors.mint, activity: 'visible'
     };
     state.accounts.push(account); state.selectedAccountId = account.id;
+    requestAccountFocus();
     publish(); return { ok: true };
   });
   listen('account:edit', (id, data) => {
@@ -556,7 +586,7 @@ function registerIPC() {
   listen('account:select', (id) => {
     const a = accountById(id);
     if (a.workspaceId !== state.activeWorkspaceId) throw new Error(T('Conta fora deste espaço.'));
-    state.selectedAccountId = id; publish(); return { ok: true };
+    state.selectedAccountId = id; requestAccountFocus(); publish(); return { ok: true };
   });
   listen('account:rename', (id, name) => {
     const a = accountById(id), next = safeString(name, 55);
@@ -570,7 +600,9 @@ function registerIPC() {
   });
   listen('account:activity', (id, mode) => {
     if (!activityModes.has(mode)) throw new Error(T('Modo de atividade inválido.'));
-    accountById(id).activity = mode; publish(); return { ok: true };
+    accountById(id).activity = mode;
+    if (id === state.selectedAccountId && mode !== 'suspended') requestAccountFocus();
+    publish(); return { ok: true };
   });
   listen('view:reload', (id, ignoreCache = false) => {
     const a = accountById(id); const existed = views.has(id); const v = makeView(a);
@@ -642,7 +674,14 @@ function registerIPC() {
     for (const id of [...views.keys()]) destroyView(id);
     state = newState; boundsForAccounts.clear(); publish(); return { ok: true };
   });
-  ipcMain.on('ui:overlay', (event, open) => { if (trustedSender(event)) { overlayOpen = !!open; refreshViews(); } });
+  ipcMain.on('ui:overlay', (event, open) => {
+    if (!trustedSender(event)) return;
+    overlayOpen = !!open;
+    const focusInterface = overlayOpen && windowMain.isFocused();
+    if (!overlayOpen) requestAccountFocus(state.selectedAccountId, false);
+    refreshViews();
+    if (focusInterface) windowMain.webContents.focus();
+  });
   ipcMain.on('layout:update', (event, rects) => {
     if (!trustedSender(event)) return;
     if (!Array.isArray(rects) || !windowMain || windowMain.isDestroyed()) return;
@@ -660,6 +699,7 @@ function registerIPC() {
       boundsForAccounts.set(rect.id, { x, y, width, height });
     }
     layoutReady = true;
+    if (pendingAccountFocus) pendingAccountFocus.afterLayout = false;
     refreshViews();
     // A trusted renderer layout after ready-to-show confirms an interactive,
     // visible interface instead of merely acknowledging the document load.
@@ -703,6 +743,7 @@ function createMainWindow() {
   windowMain.on('resize', () => {
     if (!windowMain.isDestroyed()) windowMain.webContents.send('window:resized');
   });
+  windowMain.on('focus', () => setImmediate(focusRequestedAccount));
   for (const event of ['minimize', 'restore', 'show', 'hide']) {
     windowMain.on(event, () => setImmediate(() => {
       if (!windowMain || windowMain.isDestroyed()) return;
@@ -741,6 +782,8 @@ if (ownsInstance) app.whenReady().then(() => {
   session.defaultSession?.setPermissionCheckHandler(() => false);
   session.defaultSession?.setDevicePermissionHandler?.(() => false);
   state = loadState();
+  requestAccountFocus();
+  Menu.setApplicationMenu(null);
   // Game requests use Chromium's per-account cache without request interception.
   writeAccountGuide(storage, state);
   nativeTheme.themeSource = state.preferences.theme;

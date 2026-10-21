@@ -34,6 +34,8 @@ Abra **☰ → Idioma → English / Português (Brasil)**. A escolha fica salva 
 
 - Use **+** para criar um espaço ou uma conta. Informe o endereço HTTP/HTTPS do jogo de navegador e entre pela página.
 - Cada conta tem cookies, localStorage, IndexedDB, CacheStorage e service workers separados.
+- Selecionar uma conta ou espaço transfere o foco do teclado ao jogo visível. Você pode usar os controles sem clicar novamente na página; diálogos e campos de chat mantêm seu próprio foco.
+- Ctrl+W, Ctrl+Shift+W e Alt+W não fecham o Astria nem suas janelas de jogos. Use o botão Fechar da janela para sair.
 - Clique com o botão direito para renomear, escolher cor, ajustar som/zoom ou mudar a atividade.
 - Arraste a borda da lateral para mudar a largura. A barra de cada painel tem layout, tema e uso aproximado de RAM/CPU.
 
@@ -46,6 +48,8 @@ Abra **☰ → Idioma → English / Português (Brasil)**. A escolha fica salva 
 Descarregar pode desconectar o personagem. A progressão offline depende do jogo. As métricas não incluem o custo compartilhado do aplicativo/GPU. A compatibilidade depende do site e de sua autenticação.
 
 ## Dados portáteis
+
+Páginas abertas em segundo plano começam com uma área de tamanho adequado, baseada no painel visível, em vez de uma superfície de 1×1 pixel. Assim, os jogos podem calcular o Canvas, a câmera e a interface iniciais em um tamanho normal. Trocar entre contas Sempre ativas mantém a mesma página e seu estado em memória; não recarrega nem copia dados de outra conta.
 
 O Astria cria **Save** ao lado do executável ao abrir pela primeira vez:
 

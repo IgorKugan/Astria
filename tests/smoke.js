@@ -44,6 +44,7 @@ class WebContentsMock extends EventEmitter {
   getOSProcessId() { return 100; }
   isDestroyed() { return this.closed; }
   close() { this.closed = true; }
+  focus() { this.focused = true; }
   loadURL(url) { this.loaded = url; return Promise.resolve(); }
   reload() { this.reloaded = true; }
 }
@@ -63,6 +64,7 @@ class BrowserWindowMock extends EventEmitter {
   isVisible() { return true; }
   show() { this.emit('show'); }
   isMinimized() { return false; }
+  isFocused() { return true; }
   setTitleBarOverlay() {}
   getContentSize() { return [1490, 900]; }
   static getAllWindows() { return [mainWindow]; }
@@ -74,7 +76,7 @@ const mock = {
   BrowserWindow: BrowserWindowMock, WebContentsView: WebContentsViewMock,
   ipcMain: { handle: (name, fn) => events.set(name, fn), on: (name, fn) => events.set(name, fn) },
   session: { fromPartition: () => ({ protocol: { handle() {} }, setPermissionRequestHandler() {}, setPermissionCheckHandler() {} }) },
-  dialog: {}, nativeTheme: {}, protocol: { registerSchemesAsPrivileged() {} }, Menu: { buildFromTemplate: template => ({ popup() {}, template }) }
+  dialog: {}, nativeTheme: {}, protocol: { registerSchemesAsPrivileged() {} }, Menu: { setApplicationMenu() {}, buildFromTemplate: template => ({ popup() {}, template }) }
 };
 const originalRequire = require;
 const script = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8');
