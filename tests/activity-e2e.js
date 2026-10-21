@@ -10,21 +10,23 @@ const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'aa-'));
 let application;
 const server = http.createServer((_req, res) => {
   res.setHeader('content-type', 'text/html');
-  res.end('<!doctype html><title>Activity fixture</title><canvas width="320" height="180"></canvas><script>window.framesDrawn=0;window.ticks=0;setInterval(()=>ticks++,50);const ctx=document.querySelector("canvas").getContext("2d");function frame(){framesDrawn++;ctx.fillRect(framesDrawn%300,30,4,4);requestAnimationFrame(frame)}requestAnimationFrame(frame);</script>');
+  res.end('<!doctype html><title>Activity fixture</title><canvas width="320" height="180"></canvas><script>window.framesDrawn=0;window.ticks=0;window.logicTicks=0;setInterval(()=>ticks++,50);setInterval(()=>{if(document.hidden)logicTicks++},100);const ctx=document.querySelector("canvas").getContext("2d");function frame(){framesDrawn++;logicTicks++;ctx.fillRect(framesDrawn%300,30,4,4);requestAnimationFrame(frame)}requestAnimationFrame(frame);</script>');
 });
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function frames() {
   return application.evaluate(async ({ webContents }) => Object.fromEntries(await Promise.all(
-    webContents.getAllWebContents().filter(w => /^http:/.test(w.getURL())).map(async w => [w.id, await w.executeJavaScript('({frames:framesDrawn,ticks,visibility:document.visibilityState})')])
+    webContents.getAllWebContents().filter(w => /^http:/.test(w.getURL())).map(async w => [w.id, await w.executeJavaScript('({frames:framesDrawn,ticks,logicTicks,visibility:document.visibilityState})')])
   )));
 }
-async function advancing(label, requireFrames = false) {
+async function advancing(label, requireFrames = true) {
   const before = await frames();
-  await delay(700);
+  await delay(requireFrames ? 700 : 1800);
   const after = await frames();
   assert.equal(Object.keys(after).length, 4, label + ': all accounts retained');
   for (const [id, sample] of Object.entries(after)) {
     if (requireFrames) assert.ok(sample.frames - before[id].frames >= 5, label + ': animation continues in account ' + id + ' (frames: ' + before[id].frames + ' → ' + sample.frames + ')');
+    else assert.ok(sample.frames > before[id].frames || sample.visibility === 'hidden', label + ': stopped rendering must expose hidden-page visibility');
+    assert.ok(sample.logicTicks > before[id].logicTicks, label + ': frame loop or native hidden-page fallback advances game state');
     assert.ok(sample.ticks > before[id].ticks, label + ': timers continue in account ' + id);
   }
 }
@@ -71,9 +73,8 @@ async function advancing(label, requireFrames = false) {
   const window = await application.browserWindow(page);
   await window.evaluate(w=>w.minimize());
   await delay(200);
-  // Chromium's accelerated canvas can stop producing frames when Windows
-  // minimizes the surface. Timers must continue, and frames must resume below.
-  await advancing('minimized timers', false);
+  assert.equal(await window.evaluate(w=>w.isMinimized()),true,'fixture is actually minimized');
+  await advancing('minimized game loop', false);
   await window.evaluate(w=>w.restore());
   await delay(200);
   await advancing('restored timers');
@@ -94,6 +95,6 @@ async function advancing(label, requireFrames = false) {
   await page.evaluate(()=>window.multiNest.accountActivity('account-2','suspended'));
   assert.equal(Object.keys(await frames()).length,3,'suspension releases the account renderer');
   fs.mkdirSync(path.join(root,'test-results'),{recursive:true});
-  fs.writeFileSync(path.join(root,'test-results','astria-activity.json'),JSON.stringify({passed:true,checks:['four isolated account timers','focus layout animation','account switching animation','workspace switching timers','minimized timers','animation after returning to workspace','modal overlay','visible-only animation pause','return to Always active','suspension'],limitations:['Canvas animation can pause in hidden accounts or while the Windows surface is minimized.']},null,2));
-  console.log('PASS: Always active retains account timers; selected animations resume after switching accounts, workspaces and dialogs; suspension still releases renderers');
+  fs.writeFileSync(path.join(root,'test-results','astria-activity.json'),JSON.stringify({passed:true,checks:['four isolated account timers and animation loops','focus layout animation','account switching animation','workspace switching animation','minimized game loops','animation after returning to workspace','modal overlay with background game loops','visible-only animation pause','return to Always active','suspension']},null,2));
+  console.log('PASS: Always active game loops and timers continue across accounts, workspaces, minimization and dialogs; visible-only and suspension still stop background rendering');
 })().catch(async error=>{console.error(error);if(application)console.error(await application.evaluate(({BrowserWindow})=>{const w=BrowserWindow.getAllWindows()[0];return {size:w.getContentSize(),minimized:w.isMinimized(),mainThrottle:w.webContents.getBackgroundThrottling(),children:w.contentView.children.map(v=>({id:v.webContents?.id,visible:v.getVisible(),bounds:v.getBounds(),throttle:v.webContents?.getBackgroundThrottling()}))};}));process.exitCode=1;}).finally(async()=>{if(application)await application.close();server.close();});

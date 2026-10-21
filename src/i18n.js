@@ -7,6 +7,7 @@
   else root.AstriaI18n = api;
 })(typeof window === 'object' ? window : globalThis, () => {
   const strings = {
+    'Sempre ativa mantém o desenho e as atualizações ao trocar de conta ou espaço. Quando a janela é minimizada, o jogo recebe o estado normal de página oculta do navegador.':'Always active keeps drawing and updates running when switching accounts or workspaces. When the window is minimized, the game receives the browser’s normal hidden-page state.',
     'Aguardando carregamento…':'Waiting to load…',
     'Cache nativo independente por conta':'Native cache, separate for each account',
     'O cache dos jogos é separado por conta e fica dentro de Save. Várias contas ativas dividem os recursos da CPU e da GPU.':'Game caches are separate per account and stay inside Save. Multiple active accounts compete for CPU and GPU resources.',

@@ -164,7 +164,7 @@ function performanceHelp() {
     <p class="sub"><strong>Ativa quando visível</strong><br>Reduz a atividade quando oculta. Após um minuto, descarrega a página para liberar RAM. Ao voltar, o jogo reconecta.</p>
     <p class="sub"><strong>Suspensa</strong><br>Descarrega imediatamente. Use Retomar conta para abrir novamente com o perfil salvo.</p>
     <p class="small-note">O cache dos jogos é separado por conta e fica dentro de Save. Várias contas ativas dividem os recursos da CPU e da GPU.</p>
-    <p class="small-note">A renderização Canvas pode pausar em contas ocultas ou com a janela minimizada, mesmo com os timers ativos. Mantenha o jogo visível se ele exigir renderização contínua.</p>
+    <p class="small-note">Sempre ativa mantém o desenho e as atualizações ao trocar de conta ou espaço. Quando a janela é minimizada, o jogo recebe o estado normal de página oculta do navegador.</p>
     <p class="small-note">Descarregar pode interromper a atividade online do jogo. A progressão offline depende de cada jogo. Escolha o modo no botão direito da conta.</p>
     <div class="modal-actions"><button class="primary" data-close>Entendi</button></div>`);
 }

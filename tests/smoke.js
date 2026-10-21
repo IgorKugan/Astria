@@ -43,7 +43,7 @@ class WebContentsMock extends EventEmitter {
   setWindowOpenHandler(handler) { this.popupHandler = handler; }
   getOSProcessId() { return 100; }
   isDestroyed() { return this.closed; }
-  close() { this.closed = true; }
+  close() { this.closed = true; this.emit('destroyed'); }
   focus() { this.focused = true; }
   loadURL(url) { this.loaded = url; return Promise.resolve(); }
   reload() { this.reloaded = true; }
@@ -53,12 +53,23 @@ class WebContentsViewMock {
   setBounds(bounds) { this.bounds = bounds; }
   setVisible(value) { this.visible = value; }
 }
+class ViewMock {
+  constructor() { this.children = []; }
+  setBounds(bounds) { this.bounds = bounds; }
+  getBounds() { return this.bounds; }
+  addChildView(view, index = this.children.length) {
+    this.children = this.children.filter(child => child !== view);
+    this.children.splice(Math.min(index, this.children.length), 0, view);
+  }
+  removeChildView(view) { this.children = this.children.filter(child => child !== view); }
+}
 class BrowserWindowMock extends EventEmitter {
   constructor(options) { super(); this.options = options;
-    this.contentView = { children: [], addChildView: v => this.contentView.children.push(v), removeChildView: v => { this.contentView.children = this.contentView.children.filter(x => x !== v); }};
+    this.contentView = new ViewMock();
     this.webContents = new WebContentsMock(); this.webContents.send = () => {};
     this.destroyed = false; mainWindow = this;
   }
+  setContentView(view) { this.contentView = view; }
   loadFile(file) { this.file = file; this.webContents.mainFrame = { url: require('node:url').pathToFileURL(file).href }; }
   isDestroyed() { return this.destroyed; }
   isVisible() { return true; }
@@ -73,7 +84,7 @@ const mock = {
   app: Object.assign(new EventEmitter(), {
     setAppUserModelId() {}, setPath() {}, requestSingleInstanceLock() { return true; }, getPath() { return folder; }, whenReady() { return Promise.resolve(); }, getAppMetrics() { return []; }, quit() {}
   }),
-  BrowserWindow: BrowserWindowMock, WebContentsView: WebContentsViewMock,
+  BrowserWindow: BrowserWindowMock, WebContentsView: WebContentsViewMock, View: ViewMock,
   ipcMain: { handle: (name, fn) => events.set(name, fn), on: (name, fn) => events.set(name, fn) },
   session: { fromPartition: () => ({ protocol: { handle() {} }, setPermissionRequestHandler() {}, setPermissionCheckHandler() {} }) },
   dialog: {}, nativeTheme: {}, protocol: { registerSchemesAsPrivileged() {} }, Menu: { setApplicationMenu() {}, buildFromTemplate: template => ({ popup() {}, template }) }
@@ -114,7 +125,7 @@ const trustedEvent = () => ({ sender: mainWindow.webContents, senderFrame: mainW
   assert.ok(allViews.every(v => v.partition.startsWith('persist:')));
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(allViews[0].webContents.loaded, 'https://example.com/');
-  assert.equal(mainWindow.contentView.children.length, 2);
+  assert.equal(mainWindow.contentView.children.filter(v => v instanceof WebContentsViewMock).length, 2);
   assert.equal((await invoke('view:mute', ids[0])).ok, true);
   assert.equal(allViews[0].webContents.muted, true);
   assert.equal((await invoke('view:zoom', ids[0], 0.1)).ok, true);
@@ -140,7 +151,8 @@ const trustedEvent = () => ({ sender: mainWindow.webContents, senderFrame: mainW
   assert.equal((await invoke('workspace:add', 'Second workspace')).ok, true);
   state = (await invoke('state:get')).state;
   assert.equal(state.workspaces.length, 2);
-  assert.equal(mainWindow.contentView.children.length, 0, 'inactive workspace views detached');
+  assert.equal(mainWindow.contentView.children.filter(v => v instanceof WebContentsViewMock).length, 1, 'Always active view remains attached behind the interface');
+  assert.equal(allViews[0].visible, true, 'Always active surface is not hidden');
   for (const [id, fn] of [...timers]) { timers.delete(id); fn(); }
   assert.equal(allViews[0].webContents.closed, false, 'always-active survives hiding');
   assert.equal(allViews[1].webContents.closed, true, 'visible-only releases the hidden renderer');

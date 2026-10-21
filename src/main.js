@@ -1,12 +1,13 @@
 'use strict';
 
-const { app, BrowserWindow, WebContentsView, ipcMain, session, dialog, nativeTheme, Menu, shell } = require('electron');
+const { app, BrowserWindow, WebContentsView, View, ipcMain, session, dialog, nativeTheme, Menu, shell } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const { isInterfaceURL } = require('./trusted-ui');
 const { pageMetrics } = require('./metrics');
 const { planViewLoads } = require('./view-loads');
+const { closePage } = require('./view-close');
 const { configureStorage, writeAccountGuide } = require('./storage');
 const { Updates } = require('./updates');
 const releaseConfig = require('./release-config.json');
@@ -22,6 +23,7 @@ catch (error) {
 app.setAppUserModelId('com.multinest.desktop');
 
 let windowMain;
+let interfaceView;
 let state;
 const I18n = require('./i18n');
 const T = (value, ...values) => typeof value === 'string' ? I18n.translate(value, state?.preferences.language || 'en') : I18n.tag(value, values, state?.preferences.language || 'en');
@@ -33,7 +35,11 @@ let layoutReady = false;
 let windowShown = false;
 let quitting = false;
 let pendingAccountFocus;
+let closingApplication;
+let allowWindowClose = false;
+let quitAfterClosing = false;
 const views = new Map();
+const closingViews = new Map();
 const initialLoads = new Map();
 const viewStatuses = new Map();
 const boundsForAccounts = new Map();
@@ -177,6 +183,7 @@ function finishInitialLoad(id, view) {
 }
 
 function makeView(account) {
+  if (quitting || closingViews.has(account.id)) return null;
   if (views.has(account.id)) return views.get(account.id);
   if (modeFor(account) === 'suspended') return null;
   const partition = `persist:multinest-${account.id}`;
@@ -198,13 +205,16 @@ function makeView(account) {
     }
   });
   view.activityMode = modeFor(account);
+  view.throttled = modeFor(account) !== 'always';
   views.set(account.id, view);
   // A broken/slow website must not hold the startup queue indefinitely.
   initialLoads.set(account.id, { view, timer: setTimeout(() => finishInitialLoad(account.id, view), initialLoadLimit) });
   setStatus(account.id, { queued: false, sleeping: false, loading: true, error: '' });
   // Like a background browser tab, initialize at a real viewport size. A 1x1
   // surface can leave games with incorrect initial cameras, maps or HUDs.
-  const [width, height] = windowMain.getContentSize();
+  const [windowWidth, windowHeight] = windowMain.getContentSize();
+  const interfaceBounds = interfaceView.getBounds();
+  const width = windowWidth || interfaceBounds.width, height = windowHeight || interfaceBounds.height;
   const initialBounds = boundsForAccounts.get(account.id) || boundsForAccounts.get(state.selectedAccountId) || boundsForAccounts.values().next().value;
   view.setBounds(initialBounds || { x: 0, y: 36, width, height: Math.max(75, height - 36) });
   view.webContents.setAudioMuted(!!account.muted);
@@ -223,6 +233,7 @@ function makeView(account) {
   view.webContents.on('will-attach-webview', event => event.preventDefault());
   view.popups = new Set();
   view.webContents.setWindowOpenHandler(({ url }) => {
+    if (quitting || view.closing) return { action: 'deny' };
     try {
       safeURL(url);
       if (!/^https?:\/\//i.test(url)) return { action: 'deny' };
@@ -273,18 +284,40 @@ function destroyView(id, preserveBounds = false) {
   clearTimeout(idleTimers.get(id)); idleTimers.delete(id);
   clearTimeout(initialLoads.get(id)?.timer); initialLoads.delete(id);
   const view = views.get(id);
-  if (!view) return;
+  if (!view) return closingViews.get(id) || Promise.resolve();
+  view.closing = true;
   if (windowMain && !windowMain.isDestroyed()) {
     try { windowMain.contentView.removeChildView(view); } catch { /* wasn't attached */ }
   }
-  if (!view.webContents.isDestroyed()) {
-    view.webContents.session?.flushStorageData();
-    view.webContents.close();
-  }
-  for (const popup of view.popups || []) if (!popup.isDestroyed()) popup.destroy();
   views.delete(id);
   viewStatuses.delete(id);
   if (!preserveBounds) boundsForAccounts.delete(id);
+  const completion = Promise.all([closePage(view.webContents), ...[...(view.popups || [])].filter(popup => !popup.isDestroyed()).map(popup => closePage(popup.webContents))]).finally(() => {
+    closingViews.delete(id);
+    if (!quitting && windowMain && !windowMain.isDestroyed()) setImmediate(refreshViews);
+  });
+  closingViews.set(id, completion);
+  // Background suspension/removal also uses this path, without an awaited IPC.
+  completion.catch(error => {
+    if (windowMain && !windowMain.isDestroyed()) windowMain.webContents.send('ui:toast', error.message);
+  });
+  return completion;
+}
+
+function closeApplication(quit = false) {
+  quitAfterClosing ||= quit;
+  if (closingApplication) return closingApplication;
+  quitting = true;
+  closingApplication = Promise.all([...closingViews.values(), ...[...views.keys()].map(id => destroyView(id))]).then(() => {
+    allowWindowClose = true;
+    if (quitAfterClosing) app.quit();
+    else if (windowMain && !windowMain.isDestroyed()) windowMain.close();
+  }).catch(error => {
+    closingApplication = undefined; quitting = false; quitAfterClosing = false;
+    if (windowMain && !windowMain.isDestroyed()) windowMain.webContents.send('ui:toast', error.message);
+    setImmediate(refreshViews);
+  });
+  return closingApplication;
 }
 
 function refreshViews() {
@@ -300,6 +333,18 @@ function refreshViews() {
   for (const account of starts) {
     makeView(account);
   }
+  // Release the host window's forced-visible state before hiding its surfaces.
+  // Minimized pages then get Chromium's normal hidden-page fallback instead of
+  // reporting 'visible' while no animation frames can be delivered.
+  for (const account of state.accounts) {
+    const view = views.get(account.id);
+    if (!view) continue;
+    const throttled = modeFor(account) !== 'always' || !windowVisible;
+    if (view.throttled !== throttled) {
+      view.webContents.setBackgroundThrottling(throttled);
+      view.throttled = throttled;
+    }
+  }
   for (const account of state.accounts) {
     const mode = modeFor(account), onScreen = visible.has(account.id);
     if (mode === 'suspended') {
@@ -314,29 +359,27 @@ function refreshViews() {
         setStatus(account.id, { queued: true, sleeping: false, loading: false, error: '' });
         continue;
       }
-      if (view.activityMode !== mode) {
-        view.webContents.setBackgroundThrottling(mode !== 'always');
-        view.activityMode = mode;
-      }
+      view.activityMode = mode;
       const attached = windowMain.contentView.children.includes(view);
       view.onScreen = onScreen && !overlayOpen;
       if (onScreen && !overlayOpen) {
         view.setBounds(boundsForAccounts.get(account.id));
         view.setVisible(true);
-        if (!attached) windowMain.contentView.addChildView(view);
+        if (!attached || windowMain.contentView.children.indexOf(view) < windowMain.contentView.children.indexOf(interfaceView)) windowMain.contentView.addChildView(view);
       } else {
-        view.setVisible(false);
-        if (attached) windowMain.contentView.removeChildView(view);
+        // Keep Always active surfaces attached and drawing behind the opaque
+        // interface. Detaching stops rAF while backgroundThrottling:false still
+        // reports document.visibilityState='visible', so games cannot use their
+        // normal hidden-page fallback and their frame-driven state can stall.
+        view.setVisible(windowVisible);
+        if (!attached || windowMain.contentView.children.indexOf(view) > windowMain.contentView.children.indexOf(interfaceView)) windowMain.contentView.addChildView(view, 0);
       }
     } else {
       if (viewStatuses.get(account.id)?.queued) setStatus(account.id, { queued: false });
       const view = views.get(account.id);
       if (!view) continue;
       view.onScreen = false;
-      if (view.activityMode !== mode) {
-        view.webContents.setBackgroundThrottling(true);
-        view.activityMode = mode;
-      }
+      view.activityMode = mode;
       view.setVisible(false);
       if (windowMain.contentView.children.includes(view)) windowMain.contentView.removeChildView(view);
       if (!idleTimers.has(account.id)) {
@@ -708,6 +751,7 @@ function registerIPC() {
 }
 
 function createMainWindow() {
+  allowWindowClose = false; closingApplication = undefined; quitAfterClosing = false; quitting = false;
   layoutReady = false;
   windowShown = false;
   windowMain = new BrowserWindow({
@@ -724,6 +768,18 @@ function createMainWindow() {
       nodeIntegration: false, contextIsolation: true, sandbox: true
     }
   });
+  // Separate the trusted UI layer from the native container. Active background
+  // games stay below the UI; only on-screen games are placed above it.
+  interfaceView = windowMain.contentView;
+  windowMain.setContentView(new View());
+  windowMain.contentView.addChildView(interfaceView);
+  const resizeInterface = () => {
+    const [width, height] = windowMain.getContentSize();
+    // Windows reports 0x0 while minimized. Keep the last real viewport: a
+    // zero-sized interface surface can stop frame delivery to active games.
+    if (width > 0 && height > 0) interfaceView.setBounds({ x: 0, y: 0, width, height });
+  };
+  resizeInterface();
   // Wait for the first frame before showing a window launched by the hidden
   // update worker. Showing its unpainted surface can leave it blank until resize.
   windowMain.once('ready-to-show', () => {
@@ -735,13 +791,18 @@ function createMainWindow() {
   windowMain.loadFile(path.join(__dirname, 'index.html'));
   windowMain.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   windowMain.webContents.on('will-navigate', event => event.preventDefault());
+  windowMain.on('close', event => {
+    if (allowWindowClose) return;
+    event.preventDefault();
+    closeApplication();
+  });
   windowMain.on('closed', () => {
     clearTimeout(metricsTimer); metricsTimer = undefined;
     for (const id of [...views.keys()]) destroyView(id);
-    boundsForAccounts.clear(); overlayOpen = false; windowMain = null;
+    boundsForAccounts.clear(); overlayOpen = false; windowMain = null; interfaceView = null;
   });
   windowMain.on('resize', () => {
-    if (!windowMain.isDestroyed()) windowMain.webContents.send('window:resized');
+    if (!windowMain.isDestroyed()) { resizeInterface(); windowMain.webContents.send('window:resized'); }
   });
   windowMain.on('focus', () => setImmediate(focusRequestedAccount));
   for (const event of ['minimize', 'restore', 'show', 'hide']) {
@@ -792,4 +853,8 @@ if (ownsInstance) app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
-app.on('before-quit', () => { quitting = true; for (const id of [...views.keys()]) destroyView(id); });
+app.on('before-quit', event => {
+  if (allowWindowClose) { quitting = true; return; }
+  event.preventDefault();
+  closeApplication(true);
+});
