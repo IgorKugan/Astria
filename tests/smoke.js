@@ -54,14 +54,19 @@ class WebContentsViewMock {
   setVisible(value) { this.visible = value; }
 }
 class ViewMock {
-  constructor() { this.children = []; }
+  // `native` models the stacking Windows actually draws. Reordering an
+  // attached child changes `children` but can leave the native surface where
+  // it was; only a fresh attach is guaranteed to restack it.
+  constructor() { this.children = []; this.native = []; }
   setBounds(bounds) { this.bounds = bounds; }
   getBounds() { return this.bounds; }
   addChildView(view, index = this.children.length) {
+    const fresh = !this.children.includes(view);
     this.children = this.children.filter(child => child !== view);
     this.children.splice(Math.min(index, this.children.length), 0, view);
+    if (fresh) this.native.splice(Math.min(index, this.native.length), 0, view);
   }
-  removeChildView(view) { this.children = this.children.filter(child => child !== view); }
+  removeChildView(view) { this.children = this.children.filter(child => child !== view); this.native = this.native.filter(child => child !== view); }
 }
 class BrowserWindowMock extends EventEmitter {
   constructor(options) { super(); this.options = options;
@@ -82,7 +87,7 @@ class BrowserWindowMock extends EventEmitter {
 }
 const mock = {
   app: Object.assign(new EventEmitter(), {
-    setAppUserModelId() {}, setPath() {}, requestSingleInstanceLock() { return true; }, getPath() { return folder; }, whenReady() { return Promise.resolve(); }, getAppMetrics() { return []; }, quit() {}
+    commandLine: { appendSwitch() {}, hasSwitch: () => false }, setAppUserModelId() {}, setPath() {}, requestSingleInstanceLock() { return true; }, getPath() { return folder; }, whenReady() { return Promise.resolve(); }, getAppMetrics() { return []; }, quit() {}
   }),
   BrowserWindow: BrowserWindowMock, WebContentsView: WebContentsViewMock, View: ViewMock,
   ipcMain: { handle: (name, fn) => events.set(name, fn), on: (name, fn) => events.set(name, fn) },
@@ -148,11 +153,25 @@ const trustedEvent = () => ({ sender: mainWindow.webContents, senderFrame: mainW
   assert.equal((await events.get('state:get')({ sender: {}, senderFrame: {} })).ok, false, 'reject untrusted IPC');
   assert.equal(allViews[0].webContents.popupHandler({ url: 'file:///C:/Windows/win.ini' }).action, 'deny');
   assert.equal((await invoke('account:add', {name: 'invalid', url: 'not a url !!!'})).ok, false);
+  // Bring the Always active game on screen, then send it to the background.
+  // Each move must restack the drawn surface, not only the requested order;
+  // otherwise the background game shows through a suspended or empty panel.
+  events.get('layout:update')(trustedEvent(), [{ id: ids[0], x: 260, y: 100, width: 520, height: 550 }]);
+  {
+    const root = mainWindow.contentView, ui = root.children.find(v => !(v instanceof WebContentsViewMock));
+    assert.ok(root.native.indexOf(allViews[0]) > root.native.indexOf(ui), 'on-screen game is drawn above the interface');
+    assert.deepEqual(root.native, root.children, 'drawn stacking matches the requested order');
+  }
   assert.equal((await invoke('workspace:add', 'Second workspace')).ok, true);
   state = (await invoke('state:get')).state;
   assert.equal(state.workspaces.length, 2);
   assert.equal(mainWindow.contentView.children.filter(v => v instanceof WebContentsViewMock).length, 1, 'Always active view remains attached behind the interface');
   assert.equal(allViews[0].visible, true, 'Always active surface is not hidden');
+  {
+    const root = mainWindow.contentView, ui = root.children.find(v => !(v instanceof WebContentsViewMock));
+    assert.ok(root.native.indexOf(allViews[0]) < root.native.indexOf(ui), 'background game is drawn below the interface');
+    assert.deepEqual(root.native, root.children, 'drawn stacking matches the requested order');
+  }
   for (const [id, fn] of [...timers]) { timers.delete(id); fn(); }
   assert.equal(allViews[0].webContents.closed, false, 'always-active survives hiding');
   assert.equal(allViews[1].webContents.closed, true, 'visible-only releases the hidden renderer');

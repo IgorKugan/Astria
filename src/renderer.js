@@ -70,7 +70,7 @@ function render() {
   const grid=el('grid');
   grid.className='panel-grid '+(accounts.length?workspace.layout:'');
   if (!accounts.length) {
-    grid.innerHTML=h`<div class="empty"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 2.6 6.6L22 12l-7.4 3.4L12 22l-2.6-6.6L2 12l7.4-3.4Z" fill="currentColor"/></svg><h2>Seu próximo espaço.</h2><p>Adicione um jogo. Cada conta tem seu próprio login e pode ter uma cor e um modo de atividade.</p><button class="primary" data-action="add-account">Criar conta</button></div>`;
+    grid.innerHTML=h`<div class="empty"><svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="astria-star-empty" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".45" stop-color="#bff3ff"/><stop offset="1" stop-color="#8b6cff"/></linearGradient></defs><path d="M12 1.5 13.6 10.4 22.5 12 13.6 13.6 12 22.5 10.4 13.6 1.5 12 10.4 10.4Z" fill="url(#astria-star-empty)"/><path d="M12 7.2 12.7 11.3 16.8 12 12.7 12.7 12 16.8 11.3 12.7 7.2 12 11.3 11.3Z" fill="#ffffff" transform="rotate(45 12 12)" opacity=".85"/></svg><h2>Seu próximo espaço.</h2><p>Adicione um jogo. Cada conta tem seu próprio login e pode ter uma cor e um modo de atividade.</p><button class="primary" data-action="add-account">Criar conta</button></div>`;
     scheduleLayout(); return;
   }
   const shown=workspace.layout==='focus'?[accounts.find(a=>a.id===state.selectedAccountId)||accounts[0]]:accounts;

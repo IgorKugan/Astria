@@ -22,6 +22,14 @@ catch (error) {
 
 app.setAppUserModelId('com.multinest.desktop');
 
+// Rendering performance for browser games: request the high-performance GPU
+// where Chromium supports it and keep page rasterization on the GPU.
+// Set ASTRIA_SAFE_GPU=1 to start without these switches.
+if (process.env.ASTRIA_SAFE_GPU !== '1') {
+  app.commandLine.appendSwitch('force_high_performance_gpu');
+  app.commandLine.appendSwitch('enable-gpu-rasterization');
+}
+
 let windowMain;
 let interfaceView;
 let state;
@@ -201,7 +209,11 @@ function makeView(account) {
       sandbox: true,
       webSecurity: true,
       backgroundThrottling: modeFor(account) !== 'always',
-      javascript: true
+      javascript: true,
+      // Games rarely need spellcheck; it costs a dictionary and work per keystroke.
+      spellcheck: false,
+      // Cache compiled game scripts on first run so reloads and resumes start faster.
+      v8CacheOptions: 'bypassHeatCheck'
     }
   });
   view.activityMode = modeFor(account);
@@ -240,7 +252,7 @@ function makeView(account) {
       return { action: 'allow', overrideBrowserWindowOptions: {
         parent: windowMain,
         width: 960, height: 760,
-        webPreferences: { partition, nodeIntegration: false, contextIsolation: true, sandbox: true }
+        webPreferences: { partition, nodeIntegration: false, contextIsolation: true, sandbox: true, spellcheck: false }
       } };
     } catch { return { action: 'deny' }; }
   });
@@ -321,6 +333,22 @@ function closeApplication(quit = false) {
   return closingApplication;
 }
 
+// Put a game surface above (on screen) or below (running in the background)
+// the interface. An already-attached view is detached and attached again
+// instead of being reordered in place: on Windows an in-place reorder can
+// leave the native surface stacked where it was, so a background game kept
+// drawing above the interface and showed through a suspended or empty panel.
+function placeView(view, layer) {
+  const root = windowMain.contentView;
+  const children = root.children;
+  const index = children.indexOf(view), ui = children.indexOf(interfaceView);
+  const correct = index !== -1 && (layer === 'above' ? index > ui : index < ui);
+  if (correct) return;
+  if (index !== -1) root.removeChildView(view);
+  if (layer === 'above') root.addChildView(view);
+  else root.addChildView(view, 0);
+}
+
 function refreshViews() {
   if (quitting || !windowMain || windowMain.isDestroyed()) return;
   const windowVisible = windowMain.isVisible() && !windowMain.isMinimized();
@@ -361,19 +389,18 @@ function refreshViews() {
         continue;
       }
       view.activityMode = mode;
-      const attached = windowMain.contentView.children.includes(view);
       view.onScreen = onScreen && !overlayOpen;
       if (onScreen && !overlayOpen) {
         view.setBounds(boundsForAccounts.get(account.id));
         view.setVisible(true);
-        if (!attached || windowMain.contentView.children.indexOf(view) < windowMain.contentView.children.indexOf(interfaceView)) windowMain.contentView.addChildView(view);
+        placeView(view, 'above');
       } else {
         // Keep Always active surfaces attached and drawing behind the opaque
         // interface. Detaching stops rAF while backgroundThrottling:false still
         // reports document.visibilityState='visible', so games cannot use their
         // normal hidden-page fallback and their frame-driven state can stall.
         view.setVisible(windowVisible);
-        if (!attached || windowMain.contentView.children.indexOf(view) > windowMain.contentView.children.indexOf(interfaceView)) windowMain.contentView.addChildView(view, 0);
+        placeView(view, 'below');
       }
     } else {
       if (viewStatuses.get(account.id)?.queued) setStatus(account.id, { queued: false });
