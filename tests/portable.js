@@ -70,7 +70,7 @@ async function launch() {
   assert.deepEqual(await application.evaluate(() => [process.env.TEMP, process.env.TMP]), [paths.temp, paths.temp]);
 }
 async function views() {
-  return application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.filter(v => v.webContents?.getURL().startsWith('http://127.0.0.1:') && !v.webContents.isLoading()).map(v => v.webContents.id));
+  return application.evaluate(({ BaseWindow }) => BaseWindow.getAllWindows()[0].contentView.children.filter(v => v.webContents?.getURL().startsWith('http://127.0.0.1:') && !v.webContents.isLoading()).map(v => v.webContents.id));
 }
 async function inView(id, script) {
   return application.evaluate(async ({ webContents }, { id, script }) => {
@@ -85,7 +85,7 @@ async function inView(id, script) {
   await launch();
   for (let i = 0; i < 2; i++) {
     const result = await page.evaluate(({ name, url }) => window.multiNest.accountAdd({ name, url }), { name: `Portable ${i}`, url });
-    if (!result.ok) console.error('Packaged fixture diagnostic:', await application.evaluate(({app,BrowserWindow})=>({exe:app.getPath('exe'),source:app.getAppPath(),url:BrowserWindow.getAllWindows()[0].webContents.getURL()})), result.error);
+    if (!result.ok) console.error('Packaged fixture diagnostic:', await application.evaluate(({app,BaseWindow})=>({exe:app.getPath('exe'),source:app.getAppPath(),url:BaseWindow.getAllWindows()[0].webContents.getURL()})), result.error);
     assert.equal(result.ok, true, result.error || 'fixture account creation');
   }
   let ids = await until(async () => { const values = await views(); return values.length === 2 && values; }, 'two portable panels');
@@ -118,9 +118,9 @@ async function inView(id, script) {
     dialog.showSaveDialog = async (_parent, options) => { globalThis.exportOptions = options; return { canceled: true }; };
   });
   await page.click('#app-menu');
-  await application.evaluate(({ BrowserWindow }) => globalThis.testMenu.items.find(i => i.label === 'Abrir pasta Save').click(null, BrowserWindow.getAllWindows()[0], {}));
+  await application.evaluate(({ BaseWindow }) => globalThis.testMenu.items.find(i => i.label === 'Abrir pasta Save').click(null, BaseWindow.getAllWindows()[0], {}));
   assert.equal(await application.evaluate(() => globalThis.openedFolder), path.join(directory, 'Save'));
-  await application.evaluate(({ BrowserWindow }) => globalThis.testMenu.items.find(i => i.label === 'Exportar configuração…').click(null, BrowserWindow.getAllWindows()[0], {}));
+  await application.evaluate(({ BaseWindow }) => globalThis.testMenu.items.find(i => i.label === 'Exportar configuração…').click(null, BaseWindow.getAllWindows()[0], {}));
   await until(async () => await application.evaluate(() => !!globalThis.exportOptions), 'export dialog options');
   assert.equal(await application.evaluate(() => globalThis.exportOptions.defaultPath), path.join(directory, 'Save', 'Backups', 'astria-config.json'));
   await application.close(); application = null;

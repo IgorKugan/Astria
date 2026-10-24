@@ -8,3 +8,109 @@
 @container(max-width:330px){.reload-button{display:none}.panel-cost{font-size:9px}.panel-head{gap:2px}}
 @media(prefers-reduced-motion:reduce){.theme-thumb{transition:none}}
 .audio-toggle svg{width:15px;height:15px;pointer-events:none}.audio-toggle[aria-pressed=true]{color:var(--accent)}.audio-toggle[aria-pressed=false]{color:var(--muted);background:var(--raised)}
+
+/* Star Ray: a compact workspace, with quiet chrome around the games. */
+:root {
+  --bg:#0c111b; --surface:#121a29; --raised:#1c283c; --line:#2b3850;
+  --text:#e8eef9; --muted:#a4b2c8; --accent:#b1bcff; --tint:#9eaeff1a;
+  --on-accent:#10162c; --cyan:#87dce6; --shadow:0 16px 48px #03071166;
+  font-family:'Segoe UI Variable Text','Segoe UI',system-ui,sans-serif;
+}
+:root.light {
+  --bg:#edf1f8; --surface:#ffffff; --raised:#e7edf7; --line:#ccd6e6;
+  --text:#1c2b44; --muted:#52637b; --accent:#5148ae; --tint:#6557cf10;
+  --on-accent:#ffffff; --cyan:#166b7a; --shadow:0 16px 48px #283c5b1f;
+}
+button { transition:background-color .12s ease,color .12s ease,border-color .12s ease; }
+button:focus-visible,input:focus-visible {
+  outline:2px solid var(--accent); outline-offset:2px;
+}
+.titlebar { background:var(--surface); border-color:var(--line); }
+.brand { gap:9px; font-size:14px; letter-spacing:.15px; font-weight:650; }
+.brand-mark { width:23px; height:23px; flex:none; }
+.drag-region { font-size:12px; font-weight:500; color:var(--muted); }
+.sidebar { padding:10px 7px; background:var(--surface); }
+.section-label {
+  height:30px; padding-left:8px; font-size:10px; font-weight:650;
+  letter-spacing:.8px; text-transform:uppercase;
+}
+.section-label .icon-button { width:24px; height:24px; }
+.workspace-list,.account-list { gap:4px; }
+.workspace-item,.account-link {
+  height:35px; border-radius:7px; padding:0 9px; font-size:12px;
+  gap:9px; color:var(--muted);
+}
+.workspace-item.active {
+  color:var(--accent); background:var(--tint);
+  box-shadow:inset 2px 0 var(--accent);
+}
+.work-icon {
+  display:inline-flex; width:21px; height:21px; align-items:center;
+  justify-content:center; border:1px solid var(--line); border-radius:5px;
+  font-size:10px; font-weight:650;
+}
+.workspace-item.active .work-icon { border-color:transparent; background:var(--tint); }
+.workspace-count { opacity:1; color:var(--muted); font-size:10px; font-variant-numeric:tabular-nums; }
+.accounts-label { margin-top:15px; height:40px; padding-top:10px; }
+.account-link.active { background:var(--raised); box-shadow:inset 2px 0 var(--account-color); }
+.account-link .color-dot { width:8px; height:8px; box-shadow:0 0 0 3px color-mix(in srgb,var(--account-color) 13%,transparent); }
+.mode-icon { color:var(--muted); }
+.sidebar-resizer { width:5px; background:var(--surface); }
+.sidebar-resizer::before { inset:0 2px; background:var(--line); }
+.content { padding:8px; background:var(--bg); }
+.panel-grid { gap:8px; }
+.panel { border-radius:8px; border-color:var(--line); background:var(--surface); }
+.panel.selected { border-color:var(--account-color,var(--accent)); }
+.panel-head {
+  height:36px; gap:6px; padding:0 7px; background:var(--surface);
+  border-bottom:1px solid var(--line);
+}
+.panel-title { font-size:12px; font-weight:550; }
+.color-button { width:20px; height:24px; }
+.panel-cost { font-size:10px; letter-spacing:-.1px; color:var(--muted); }
+.panel-head .icon-button { width:24px; height:24px; border-radius:5px; }
+.activity-controls { padding:2px; gap:1px; border-radius:6px; background:var(--bg); }
+.activity-controls button { width:24px; height:24px; font-size:12px; border-radius:4px; }
+.activity-controls button[aria-pressed=true] { color:var(--accent); background:var(--raised); box-shadow:inset 0 0 0 1px var(--line); }
+.theme-toggle { width:40px; height:24px; background:var(--bg); border-color:var(--line); }
+.theme-thumb { width:18px; height:18px; background:var(--raised); box-shadow:none; }
+.theme-toggle[aria-checked=true] .theme-thumb { transform:translateX(16px); }
+.theme-toggle svg { width:10px; height:10px; vertical-align:middle; }
+.icon-button svg { width:16px; height:16px; pointer-events:none; }
+.activity-controls svg { width:14px; height:14px; pointer-events:none; }
+.audio-toggle[aria-pressed=true] { color:var(--cyan); }
+.audio-toggle[aria-pressed=false] { background:transparent; }
+.panel-body { background:var(--bg); }
+.panel-placeholder { gap:12px; padding:24px; }
+.panel-placeholder strong { font-size:14px; font-weight:550; }
+.panel-placeholder p { font-size:12px; line-height:1.65; max-width:310px; }
+.panel-placeholder .sleep-mark {
+  display:flex; align-items:center; justify-content:center; width:60px; height:60px;
+  color:var(--accent); background:var(--tint); border:1px solid var(--line);
+  border-radius:8px; opacity:1; margin-bottom:3px;
+}
+.sleep-mark svg { width:28px; height:28px; }
+.primary,.secondary,.danger { min-height:34px; border-radius:6px; padding:8px 14px; }
+.primary { background:var(--accent); color:var(--on-accent); border-color:var(--accent); font-weight:650; }
+.secondary { background:var(--raised); border-color:var(--line); }
+.danger { color:#ffabb5; background:#da647517; border-color:#da64754d; }
+:root.light .danger { color:#a01e39; background:#a01e390a; border-color:#a01e3944; }
+.empty { gap:14px; }
+.empty-mark { width:68px; height:68px; margin-bottom:4px; }
+.empty h2 { font-size:24px; font-weight:550; letter-spacing:-.6px; }
+.empty p { max-width:360px; font-size:13px; line-height:1.7; }
+.modal { border-radius:8px; padding:24px; border-color:var(--line); box-shadow:var(--shadow); }
+.modal-root { background:#030813b3; }
+.modal h2 { font-size:20px; font-weight:600; letter-spacing:-.3px; }
+.field label { font-size:12px; color:var(--muted); }
+.field input { min-height:39px; border-color:var(--line); }
+.toast { border-radius:7px; box-shadow:var(--shadow); }
+.collapsed .brand { padding:0; }
+.collapsed .brand-mark { width:23px; height:23px; }
+.collapsed .workspace-item,.collapsed .account-link { border-radius:5px; }
+.collapsed .work-icon { width:22px; }
+@container(max-width:560px) { .metric-cpu { display:none; } }
+@container(max-width:420px) { .panel-cost { display:none; } .panel-head { gap:4px; padding-inline:5px; } }
+@container(max-width:340px) { .activity-controls button { width:22px; } .panel-head .icon-button { width:22px; } }
+@media(prefers-reduced-motion:reduce) { button,.theme-thumb { transition:none; } }
+.mode-icon svg{width:13px;height:13px;display:block}

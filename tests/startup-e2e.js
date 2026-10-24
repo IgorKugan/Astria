@@ -37,7 +37,7 @@ function release(id){const res=held.get(id);assert.ok(res,'pending fixture '+id)
  await until(()=>held.has('front'),'visible navigation');
  assert.equal(requests[0],'front','visible account starts ahead of earlier Always active accounts');
  await delay(150);assert.deepEqual(requests,['front'],'no hidden profile starts while foreground is held');
- assert.equal(await application.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isVisible()),true,'UI is visible while the site loads');
+ assert.equal(await application.evaluate(({BaseWindow})=>BaseWindow.getAllWindows()[0].isVisible()),true,'UI is visible while the site loads');
  assert.equal((await page.evaluate(()=>window.multiNest.accountRename('front','Responsive'))).ok,true,'UI actions respond during navigation');
  assert.equal((await page.evaluate(()=>window.multiNest.accountActivity('background-2','suspended'))).ok,true);
  release('front');await until(()=>held.has('background-1'),'first background profile');

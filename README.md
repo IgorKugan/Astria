@@ -35,16 +35,21 @@ Open **☰ → Language → English / Português (Brasil)**. The choice is saved
 - Use **+** to add a workspace or an account. Enter any browser game's HTTP/HTTPS URL and log in inside its page.
 - Each Astria account has its own cookies, localStorage, IndexedDB, CacheStorage and service workers.
 - Selecting an account or workspace sends keyboard focus to its visible game. You can use its controls without clicking inside the page again; dialogs and game chat fields keep their own focus.
-- Ctrl+W, Ctrl+Shift+W and Alt+W cannot close Astria or its game popups. Use the window's Close button to exit.
+- Game shortcuts, including Ctrl+W, Alt+W, Ctrl+R and F5, reach the focused game with their modifiers intact. Astria does not assign browser close, reload or new-tab shortcuts. Use the toolbar or menus for browser actions and the window's Close button to exit. Windows-reserved shortcuts remain controlled by Windows.
 - Right-click an account to rename it, choose a color, control sound/zoom or change its activity.
 - Click the speaker beside a panel's RAM/CPU indicator to mute or unmute that account, including its popups. The crossed speaker means muted. Each account remembers its audio setting after restarting.
 - Drag the sidebar edge to resize it. Panel headers contain layouts, theme switch and approximate page RAM/CPU usage.
 
 | Mode | Behavior |
 | --- | --- |
-| Always active | Keeps the page loaded and timers active across accounts and workspaces. Uses more resources. See rendering limitations below. |
-| Active when visible | Reduces background activity and unloads a hidden page after one minute. Showing it reconnects the game. |
+| Always active / maximum performance | Speedometer icon. Keeps the page loaded and adds no animation FPS cap. Uses more resources. |
+| Power saving | Waving flag icon. Stays loaded across accounts and workspaces and paces animation callbacks to 15 FPS by default. |
+| Active when visible | Reduces background activity and unloads a hidden page after five minutes. Showing it reconnects the game. |
 | Suspended | Unloads immediately. Resume reopens the same saved profile. |
+
+Power saving is the button immediately after maximum performance. Right-click the account and choose **Activity → Power-saving FPS → 10 / 15 / 30 FPS**. The choice is saved per account and applies while visible too. Switching between maximum performance and power saving keeps the same page and session.
+
+Power saving limits requestAnimationFrame callbacks in the page, embedded frames and account popups. It leaves browser clocks, timers, networking, CSS animations and worker loops unchanged, so it cannot guarantee a fixed CPU or power budget. Games that calculate progress per frame can behave differently at reduced FPS. Actual FPS can be lower than the target when covered, minimized or under load. The loaded page still uses RAM; Suspended releases it.
 
 Unloading may disconnect a character. Offline progress depends on the game. Memory figures exclude shared app/GPU overhead. Compatibility depends on the website and its authentication requirements.
 
@@ -68,11 +73,11 @@ Online progress normally stays on the game's server. Windows-protected cookies m
 
 Each account uses Chromium's native HTTP cache inside its own profile. Game files are not intercepted or transferred through Astria's main process. This can use more disk space than a shared cache, while avoiding that extra loading overhead. Existing `Save/SharedAssets` folders from older releases are preserved but no longer used. All account caches move with Save.
 
-Always active keeps pages loaded with timers and animation loops running when switching accounts or workspaces, or opening Astria dialogs. Every active game still needs its own CPU, RAM and GPU resources; running several can reduce the FPS available to the selected game. Use Active when visible or Suspended for accounts that do not need to keep running. Minimizing or hiding the application uses Chromium's normal hidden-page behavior so games can use their own background update mechanisms. Actual online progress depends on the game.
+Always active keeps pages loaded and timers running when switching accounts or workspaces, or opening Astria dialogs. Covered games may animate at reduced FPS. Every active game still needs its own CPU, RAM and GPU resources; running several can reduce the FPS available to the selected game. Use Active when visible or Suspended for accounts that do not need to keep running. Minimizing or hiding the application uses Chromium's normal hidden-page behavior so games can use their own background update mechanisms. Actual online progress depends on the game, particularly if it calculates progress from animation frames instead of elapsed time.
 
 Closing Astria or restarting it for an update lets game pages run their normal shutdown events before the browser exits, then flushes their browser storage. This allows games to send their final connection/save messages. A page that does not finish closing has a five-second fallback. It does not guarantee recovery of state already lost on the game's server.
 
-When opening Astria, the selected visible account starts first. Other visible pages use a small loading queue, and hidden Always active accounts open one at a time after the visible navigation finishes. A slow site's initial loading slot expires after ten seconds so it cannot block the other accounts indefinitely. Selecting a queued account gives it priority. Activity settings and saved sessions are preserved.
+When opening Astria, the selected visible account starts first. Other visible pages use a small loading queue, and hidden Always active or Power saving accounts open one at a time after the visible navigation finishes. A slow site's initial loading slot expires after ten seconds so it cannot block the other accounts indefinitely. Selecting a queued account gives it priority. Activity settings and saved sessions are preserved.
 
 For faster startup after turning on the PC, keep the entire portable Astria folder, including Save, on an SSD. A mechanical hard drive can be much slower when Windows has not cached the program and profile files yet. Changing the storage location requires closing Astria first; no caches or profiles need to be deleted.
 

@@ -49,7 +49,7 @@ async function launch() {
   page = await app.firstWindow(); await page.waitForSelector('#grid .empty, #grid .panel');
   await app.evaluate(({ app }) => { globalThis.fixtureErrors = []; app.on('web-contents-created', (_e, w) => w.on('console-message', (...args) => globalThis.fixtureErrors.push(args.map(a => typeof a === 'string' ? a : a?.message || '').join(' ')))); });
 }
-async function views() { return app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.filter(v => v.webContents?.getURL().startsWith('http://127.0.0.1:') && !v.webContents.isLoading()).map(v => v.webContents.id)); }
+async function views() { return app.evaluate(({ BaseWindow }) => BaseWindow.getAllWindows()[0].contentView.children.filter(v => v.webContents?.getURL().startsWith('http://127.0.0.1:') && !v.webContents.isLoading()).map(v => v.webContents.id)); }
 async function inView(id, script) { return app.evaluate(({ webContents }, { id, script }) => webContents.fromId(id).executeJavaScript(script), { id, script }); }
 (async () => {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve)); base = `http://127.0.0.1:${server.address().port}`;

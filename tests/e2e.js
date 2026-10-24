@@ -40,17 +40,17 @@ async function appMenu(...labels) {
   await clickMenu(labels);
 }
 async function clickMenu(labels) {
-  await application.evaluate(({BrowserWindow},labels)=>{
+  await application.evaluate(({BaseWindow},labels)=>{
     let menu=globalThis.testMenu,item;
     for(const label of labels){item=menu.items.find(i=>i.label===label);if(!item)throw new Error('Menu item missing: '+label);menu=item.submenu;}
-    item.click(item,BrowserWindow.getAllWindows()[0],{});
+    item.click(item,BaseWindow.getAllWindows()[0],{});
   },labels);
 }
 async function allSiteContents() {
   return application.evaluate(({webContents})=>webContents.getAllWebContents().filter(w=>w.getURL().startsWith('http://127.0.0.1:')).map(w=>({id:w.id,throttled:w.getBackgroundThrottling()})));
 }
 async function getViews() {
-  return application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children
+  return application.evaluate(({ BaseWindow }) => BaseWindow.getAllWindows()[0].contentView.children
     .filter(v => v.webContents && v.onScreen).map(v => ({ id: v.webContents.id, bounds: v.getBounds(), url: v.webContents.getURL() })));
 }
 async function inView(id, script) {
@@ -89,7 +89,7 @@ async function readStorage(id) {
   const url = `http://127.0.0.1:${server.address().port}/`;
   await launch();
   assert.equal(await page.getAttribute('html','lang'),'en');
-  assert.equal(await page.locator('[data-i18n="Contas"]').innerText(),'Accounts');
+  assert.equal(await page.locator('[data-i18n="Contas"]').textContent(),'Accounts');
   await appMenu('Language','Português (Brasil)');
   await page.waitForFunction(()=>document.documentElement.lang==='pt-BR');
   for (let i = 1; i <= 2; i++) await addAccount('Conta ' + i, url + '#fixture-' + i);
@@ -179,6 +179,13 @@ async function readStorage(id) {
   await waitUntil(async()=>await page.locator('.metric-ram').first().innerText()!=='— MB','page memory metric');
   assert.match(await page.locator('.metric-ram').first().innerText(),/^~\d/);
   assert.match(await page.locator('.metric-cpu').first().innerText(),/CPU/);
+  assert.deepEqual(await page.locator('.activity-controls').first().locator('button').evaluateAll(buttons=>buttons.map(b=>b.dataset.mode)),['always','eco','visible','suspended'],'four activity buttons in requested order');
+  assert.match(await page.locator('[data-mode="visible"]').first().getAttribute('title'),/5 minutos/);
+  await page.locator('[data-mode="eco"]').first().click();
+  await page.waitForSelector('[data-mode="eco"][aria-pressed="true"]');
+  await firstLink.click({button:'right'});await clickMenu(['Atividade','FPS em economia','10 FPS']);
+  await page.waitForFunction(()=>document.querySelector('[data-mode="eco"][aria-pressed="true"]').title.includes('10 FPS'));
+  await page.locator('[data-mode="visible"]').first().click();
   // Layout controls are also directly accessible from each panel header.
   await page.locator('.layout-button').first().click();await clickMenu(['Colunas']);
   await page.waitForSelector('.panel-grid.columns');
@@ -237,8 +244,8 @@ async function readStorage(id) {
   assert.equal(await audio.getAttribute('title'), 'Ativar áudio');
   assert.deepEqual(await nativeAudio(), [true, false], 'mute only the selected account');
   await inView(views[0].id, 'document.querySelector("button").click()');
-  await waitUntil(async () => await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length === 2), 'account popup');
-  const popup = await application.evaluateHandle(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => w.getParentWindow()));
+  await waitUntil(async () => await application.evaluate(({ BaseWindow }) => BaseWindow.getAllWindows().length === 2), 'account popup');
+  const popup = await application.evaluateHandle(({ BaseWindow }) => BaseWindow.getAllWindows().find(w => w.getParentWindow()));
   assert.equal(await popup.evaluate(w => w.webContents.isAudioMuted()), true, 'new popup inherits account mute');
   await audio.click();
   await waitUntil(async () => await audio.getAttribute('aria-pressed') === 'true', 'unmute icon');
@@ -273,7 +280,7 @@ async function readStorage(id) {
   assert.equal(await page.locator('.audio-toggle').first().getAttribute('title'), 'Unmute');
   assert.equal(await page.locator('.audio-toggle').first().getAttribute('aria-label'), 'Audio for Minha conta');
   assert.equal(await page.locator('.audio-toggle').first().getAttribute('aria-pressed'), 'false');
-  assert.equal(await page.locator('[data-i18n="Contas"]').innerText(),'Accounts');
+  assert.equal(await page.locator('[data-i18n="Contas"]').textContent(),'Accounts');
   const englishState=(await page.evaluate(()=>window.multiNest.getState())).state;
   assert.deepEqual(englishState.accounts.map(a=>a.id),idsBeforeLanguage,'language switch preserves account identities');
   assert.equal(await restoredFirstLink.locator('.row-label').innerText(),'Minha conta','custom account name is never translated');

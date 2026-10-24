@@ -4,7 +4,7 @@
 // initial page loads compete for these slots.
 function planViewLoads(accounts, { ready, visible, existing, loading, selected }) {
   if (!ready) return [];
-  const wanted = accounts.filter(a => a.activity !== 'suspended' && (visible.has(a.id) || a.activity === 'always'));
+  const wanted = accounts.filter(a => a.activity !== 'suspended' && (visible.has(a.id) || a.activity === 'always' || a.activity === 'eco'));
   const missing = wanted.filter(a => !existing.has(a.id));
   const foreground = missing.filter(a => visible.has(a.id));
   foreground.sort((a, b) => Number(b.id === selected) - Number(a.id === selected));

@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('multiNest', Object.freeze({
   accountRename: (id, name) => invoke('account:rename', id, name),
   accountColor: (id, color) => invoke('account:color', id, color),
   accountActivity: (id, mode) => invoke('account:activity', id, mode),
+  accountEcoFPS: (id, fps) => invoke('account:eco-fps', id, fps),
   appMenu: point => invoke('menu:app', point),
   accountMenu: (id, point) => invoke('menu:account', id, point),
   sidebarWidth: width => invoke('settings:sidebar-width', width),

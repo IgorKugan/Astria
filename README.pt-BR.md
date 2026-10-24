@@ -35,16 +35,21 @@ Abra **☰ → Idioma → English / Português (Brasil)**. A escolha fica salva 
 - Use **+** para criar um espaço ou uma conta. Informe o endereço HTTP/HTTPS do jogo de navegador e entre pela página.
 - Cada conta tem cookies, localStorage, IndexedDB, CacheStorage e service workers separados.
 - Selecionar uma conta ou espaço transfere o foco do teclado ao jogo visível. Você pode usar os controles sem clicar novamente na página; diálogos e campos de chat mantêm seu próprio foco.
-- Ctrl+W, Ctrl+Shift+W e Alt+W não fecham o Astria nem suas janelas de jogos. Use o botão Fechar da janela para sair.
+- Os atalhos, incluindo Ctrl+W, Alt+W, Ctrl+R e F5, chegam ao jogo em foco com seus modificadores preservados. O Astria não atribui atalhos de navegador para fechar, recarregar ou abrir abas. Use a barra ou os menus para ações do navegador e o botão Fechar da janela para sair. Atalhos reservados pelo Windows continuam sob controle do Windows.
 - Clique com o botão direito para renomear, escolher cor, ajustar som/zoom ou mudar a atividade.
 - Clique no alto-falante ao lado do indicador de RAM/CPU do painel para ativar ou silenciar o áudio daquela conta, incluindo seus popups. O alto-falante riscado indica áudio silenciado. Cada conta mantém essa escolha após reiniciar.
 - Arraste a borda da lateral para mudar a largura. A barra de cada painel tem layout, tema e uso aproximado de RAM/CPU.
 
 | Modo | Comportamento |
 | --- | --- |
-| Sempre ativa | Mantém a página carregada e os timers ativos em outras contas e espaços. Usa mais recursos. Veja abaixo as limitações de renderização. |
-| Ativa quando visível | Reduz atividade em segundo plano e descarrega uma página oculta após um minuto. Ao voltar, reconecta o jogo. |
+| Sempre ativa / desempenho máximo | Ícone de velocímetro. Mantém a página carregada e não impõe limite de FPS às animações. Usa mais recursos. |
+| Economia de energia | Ícone de bandeira ondulada. Mantém a conta carregada em outros espaços e limita os quadros de animação a 15 FPS por padrão. |
+| Ativa quando visível | Reduz atividade em segundo plano e descarrega uma página oculta após cinco minutos. Ao voltar, reconecta o jogo. |
 | Suspensa | Descarrega imediatamente. Retomar reabre o mesmo perfil salvo. |
+
+Economia de energia fica imediatamente após desempenho máximo. Clique com o botão direito na conta e escolha **Atividade → FPS em economia → 10 / 15 / 30 FPS**. A escolha é salva por conta e também vale com a página visível. Trocar entre desempenho máximo e economia mantém a mesma página e sessão.
+
+A economia limita callbacks de requestAnimationFrame na página, nos frames incorporados e nos popups da conta. Relógios, timers, rede, animações CSS e workers continuam nativos; por isso não há garantia de um consumo fixo de CPU ou energia. Jogos que calculam progresso por quadro podem se comportar de outra forma com FPS reduzido. O FPS real pode ficar abaixo da meta quando a página estiver coberta, minimizada ou sob carga. A página carregada continua usando RAM; Suspensa libera essa memória.
 
 Descarregar pode desconectar o personagem. A progressão offline depende do jogo. As métricas não incluem o custo compartilhado do aplicativo/GPU. A compatibilidade depende do site e de sua autenticação.
 
@@ -68,11 +73,11 @@ O progresso online normalmente fica no servidor. Cookies protegidos pelo Windows
 
 Cada conta usa o cache HTTP nativo do Chromium dentro de seu próprio perfil. Os arquivos dos jogos não são interceptados nem transferidos pelo processo principal do Astria. Isso pode usar mais disco que um cache compartilhado, mas evita essa etapa extra no carregamento. Pastas `Save/SharedAssets` de versões anteriores são preservadas, mas não são mais utilizadas. Todos os caches vão junto com Save.
 
-Sempre ativa mantém as páginas carregadas, com timers e animações funcionando ao trocar de conta ou espaço e ao abrir diálogos do Astria. Cada jogo ativo continua usando sua própria CPU, RAM e GPU; várias contas podem reduzir o FPS disponível para a conta selecionada. Use Ativa quando visível ou Suspensa nas contas que não precisam continuar funcionando. Minimizar ou ocultar o aplicativo aplica o comportamento normal de página oculta do Chromium, permitindo que os jogos usem seus próprios mecanismos de atualização em segundo plano. A progressão online depende do jogo.
+Sempre ativa mantém as páginas carregadas e os timers funcionando ao trocar de conta ou espaço e ao abrir diálogos do Astria. Jogos cobertos podem animar com FPS reduzido. Cada jogo ativo continua usando sua própria CPU, RAM e GPU; várias contas podem reduzir o FPS disponível para a conta selecionada. Use Ativa quando visível ou Suspensa nas contas que não precisam continuar funcionando. Minimizar ou ocultar o aplicativo aplica o comportamento normal de página oculta do Chromium, permitindo que os jogos usem seus próprios mecanismos de atualização em segundo plano. A progressão online depende do jogo, principalmente quando ele calcula o progresso por quadros de animação em vez do tempo decorrido.
 
 Fechar o Astria ou reiniciá-lo para atualizar permite que as páginas executem seus eventos normais de saída antes do encerramento do navegador e depois grava seus dados locais pendentes. Assim, os jogos podem enviar suas últimas mensagens de conexão/salvamento. Uma página que não termina de fechar tem um limite de cinco segundos. Isso não garante recuperar um estado já perdido no servidor do jogo.
 
-Ao abrir o Astria, a conta visível selecionada inicia primeiro. As outras páginas visíveis usam uma pequena fila de carregamento; as contas Sempre ativas ocultas abrem uma por vez após terminar a navegação visível. Uma página lenta libera sua posição inicial na fila após dez segundos para não bloquear as demais indefinidamente. Selecionar uma conta na fila dá prioridade a ela. Os modos de atividade e as sessões salvas são preservados.
+Ao abrir o Astria, a conta visível selecionada inicia primeiro. As outras páginas visíveis usam uma pequena fila de carregamento; as contas ocultas em Sempre ativa ou Economia de energia abrem uma por vez após terminar a navegação visível. Uma página lenta libera sua posição inicial na fila após dez segundos para não bloquear as demais indefinidamente. Selecionar uma conta na fila dá prioridade a ela. Os modos de atividade e as sessões salvas são preservados.
 
 Para abrir mais rápido após ligar o PC, mantenha a pasta portátil Astria inteira, incluindo Save, em um SSD. Um HD mecânico pode demorar mais enquanto o Windows ainda não tem os arquivos do programa e dos perfis em cache. Feche o Astria antes de mudar de local; não é necessário apagar caches ou perfis.
 

@@ -4,7 +4,7 @@ const {translate,tag}=require('../src/i18n');
 assert.equal(translate('Nova conta…','en'),'New account…');
 assert.equal(translate('Nova conta…','pt-BR'),'Nova conta…');
 assert.equal(tag(['Cor de ',' está suspensa'],['Cancelar'],'en'),'Color for Cancelar is suspended','translate static UI, never user-provided names');
-assert.equal(translate('Ativa quando visível · descarrega após 1 minuto oculta','en'),'Active when visible · unloads after one minute hidden');
+assert.equal(translate('Ativa quando visível · descarrega após 5 minutos oculta','en'),'Active when visible · unloads after five minutes hidden');
 assert.equal(translate('Configuração importada.','en'),'Configuration imported.');
 assert.equal(translate('Assinatura da atualização inválida.','en'),'Invalid update signature.');
 console.log('PASS: EN/PT-BR translations, dynamic labels and preservation of user-provided names');

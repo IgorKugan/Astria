@@ -68,8 +68,8 @@ async function launch(profile) {
   }), 'two game connections ready');
 }
 async function close(mode) {
-  await application.evaluate(({ app, BrowserWindow }, mode) => {
-    setTimeout(() => mode === 'quit' ? app.quit() : BrowserWindow.getAllWindows()[0].close(), 20);
+  await application.evaluate(({ app, BaseWindow }, mode) => {
+    setTimeout(() => mode === 'quit' ? app.quit() : BaseWindow.getAllWindows()[0].close(), 20);
   }, mode);
 }
 (async () => {

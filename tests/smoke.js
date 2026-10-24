@@ -32,9 +32,10 @@ const events = new Map();
 let mainWindow;
 const allViews = [];
 const timers = new Map();
+const timerDelays = new Map();
 let nextTimer = 0;
 class WebContentsMock extends EventEmitter {
-  constructor() { super(); this.closed = false; this.u = 'Mozilla/5.0 Electron/44.9.0 Chrome/152'; this.session = { flushStorageData() {} }; }
+  constructor() { super(); this.send = () => {}; this.closed = false; this.u = 'Mozilla/5.0 Electron/44.9.0 Chrome/152'; this.session = { flushStorageData() {} }; this.mainFrame = {framesInSubtree:[{isDestroyed:()=>false,send:(...args)=>this.send(...args)}]}; }
   setAudioMuted(flag) { this.muted = flag; }
   setZoomFactor(z) { this.zoom = z; }
   setBackgroundThrottling(value) { this.throttled = value; }
@@ -46,11 +47,13 @@ class WebContentsMock extends EventEmitter {
   close() { this.closed = true; this.emit('destroyed'); }
   focus() { this.focused = true; }
   loadURL(url) { this.loaded = url; return Promise.resolve(); }
+  loadFile(file) { this.file = file; this.mainFrame = { url: require('node:url').pathToFileURL(file).href }; return Promise.resolve(); }
   reload() { this.reloaded = true; }
 }
 class WebContentsViewMock {
-  constructor(options) { this.partition = options.webPreferences.partition; this.webContents = new WebContentsMock(); allViews.push(this); }
+  constructor(options) { this.partition = options.webPreferences.partition; this.webContents = new WebContentsMock(); if (this.partition) allViews.push(this); }
   setBounds(bounds) { this.bounds = bounds; }
+  getBounds() { return this.bounds; }
   setVisible(value) { this.visible = value; }
 }
 class ViewMock {
@@ -89,7 +92,7 @@ const mock = {
   app: Object.assign(new EventEmitter(), {
     commandLine: { appendSwitch() {}, hasSwitch: () => false }, setAppUserModelId() {}, setPath() {}, requestSingleInstanceLock() { return true; }, getPath() { return folder; }, whenReady() { return Promise.resolve(); }, getAppMetrics() { return []; }, quit() {}
   }),
-  BrowserWindow: BrowserWindowMock, WebContentsView: WebContentsViewMock, View: ViewMock,
+  BaseWindow: BrowserWindowMock, WebContentsView: WebContentsViewMock, View: ViewMock,
   ipcMain: { handle: (name, fn) => events.set(name, fn), on: (name, fn) => events.set(name, fn) },
   session: { fromPartition: () => ({ protocol: { handle() {} }, setPermissionRequestHandler() {}, setPermissionCheckHandler() {} }) },
   dialog: {}, nativeTheme: {}, protocol: { registerSchemesAsPrivileged() {} }, Menu: { setApplicationMenu() {}, buildFromTemplate: template => ({ popup() {}, template }) }
@@ -100,7 +103,7 @@ vm.runInNewContext(script, {
   require: n => n === 'electron' ? mock : originalRequire(n.startsWith('.') ? path.resolve(__dirname,'../src',n) : n),
   __dirname: path.join(__dirname, '..', 'src'), console, process,
   setInterval: () => 0, URL, setImmediate,
-  setTimeout: fn => { const id = ++nextTimer; timers.set(id, fn); return id; },
+  setTimeout: (fn, delay) => { const id = ++nextTimer; timers.set(id, fn); timerDelays.set(id,delay); return id; },
   clearTimeout: id => timers.delete(id)
 }, { filename: 'main.js' });
 async function invoke(channel, ...args) {
@@ -112,7 +115,7 @@ const trustedEvent = () => ({ sender: mainWindow.webContents, senderFrame: mainW
 (async () => {
   await new Promise(resolve => setImmediate(resolve));
   assert.ok(mainWindow, 'main window exists');
-  mainWindow.emit('ready-to-show');
+  mainWindow.webContents.emit('did-finish-load');
   assert.equal((await invoke('state:get')).state.workspaces[0].name, 'My games');
   assert.equal((await invoke('state:get')).state.preferences.language, 'en');
   assert.equal((await invoke('settings:language','pt-BR')).ok,true);
@@ -130,7 +133,7 @@ const trustedEvent = () => ({ sender: mainWindow.webContents, senderFrame: mainW
   assert.ok(allViews.every(v => v.partition.startsWith('persist:')));
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(allViews[0].webContents.loaded, 'https://example.com/');
-  assert.equal(mainWindow.contentView.children.filter(v => v instanceof WebContentsViewMock).length, 2);
+  assert.equal(mainWindow.contentView.children.filter(v => v.webContents !== mainWindow.webContents).length, 2);
   assert.equal((await invoke('view:mute', ids[0])).ok, true);
   assert.equal(allViews[0].webContents.muted, true);
   assert.equal((await invoke('view:zoom', ids[0], 0.1)).ok, true);
@@ -158,17 +161,18 @@ const trustedEvent = () => ({ sender: mainWindow.webContents, senderFrame: mainW
   // otherwise the background game shows through a suspended or empty panel.
   events.get('layout:update')(trustedEvent(), [{ id: ids[0], x: 260, y: 100, width: 520, height: 550 }]);
   {
-    const root = mainWindow.contentView, ui = root.children.find(v => !(v instanceof WebContentsViewMock));
+    const root = mainWindow.contentView, ui = root.children.find(v => v.webContents === mainWindow.webContents);
     assert.ok(root.native.indexOf(allViews[0]) > root.native.indexOf(ui), 'on-screen game is drawn above the interface');
     assert.deepEqual(root.native, root.children, 'drawn stacking matches the requested order');
   }
   assert.equal((await invoke('workspace:add', 'Second workspace')).ok, true);
+  assert.ok([...timers.keys()].some(id=>timerDelays.get(id)===300000),'hidden visible account is scheduled to unload after five minutes');
   state = (await invoke('state:get')).state;
   assert.equal(state.workspaces.length, 2);
-  assert.equal(mainWindow.contentView.children.filter(v => v instanceof WebContentsViewMock).length, 1, 'Always active view remains attached behind the interface');
+  assert.equal(mainWindow.contentView.children.filter(v => v.webContents !== mainWindow.webContents).length, 1, 'Always active view remains attached behind the interface');
   assert.equal(allViews[0].visible, true, 'Always active surface is not hidden');
   {
-    const root = mainWindow.contentView, ui = root.children.find(v => !(v instanceof WebContentsViewMock));
+    const root = mainWindow.contentView, ui = root.children.find(v => v.webContents === mainWindow.webContents);
     assert.ok(root.native.indexOf(allViews[0]) < root.native.indexOf(ui), 'background game is drawn below the interface');
     assert.deepEqual(root.native, root.children, 'drawn stacking matches the requested order');
   }

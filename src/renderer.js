@@ -10,9 +10,26 @@ const currentWorkspace = () => state.workspaces.find(w => w.id === state.activeW
 const currentAccounts = () => state.accounts.filter(a => a.workspaceId === state.activeWorkspaceId);
 const account = id => state.accounts.find(a => a.id === id);
 const host = url => { try { return new URL(url).hostname; } catch { return url; } };
-const activityLabel = a => ({always:tr('Sempre ativa'),visible:tr('Ativa quando visível'),suspended:tr('Suspensa · RAM liberada')}[a.activity] || tr('Ativa quando visível'));
-const modeIcon = a => a.activity === 'always' ? '∞' : a.activity === 'suspended' ? 'Ⅱ' : '';
-const layoutIcons = {auto:'▦',columns:'▥',rows:'☷',focus:'▣'};
+const activityLabel = a => ({always:tr('Sempre ativa · desempenho máximo'),eco:tr('Economia de energia'),visible:tr('Ativa quando visível'),suspended:tr('Suspensa · RAM liberada')}[a.activity] || tr('Ativa quando visível'));
+const modeIcon = a => a.activity === 'always' ? glyph('always') : a.activity === 'eco' ? glyph('eco') : a.activity === 'suspended' ? glyph('pause') : '';
+const glyph = name => {
+  const paths = {
+    grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+    columns: '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M12 3v18"/>',
+    rows: '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 12h18"/>',
+    focus: '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 8h8v8H8z"/>',
+    always: '<path d="M4 19a9 9 0 1 1 16 0M5 13H3m4-6 1.5 1.5M12 4v2m6-1-5 7"/><circle cx="12" cy="13" r="2"/>',
+    eco: '<path d="M5 21V4m0 1c5-5 9 5 15 0v10c-6 5-10-5-15 0"/>',
+    visible: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>',
+    pause: '<path d="M9 5v14m6-14v14"/>',
+    reload: '<path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 7a7 7 0 0 1 12-1l2 3M4 15l2 3a7 7 0 0 0 12-1"/>',
+    menu: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/>',
+    moon: '<path d="M20 15.4A8.5 8.5 0 0 1 8.6 4 8.5 8.5 0 1 0 20 15.4Z"/>'
+  };
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name]}</svg>`;
+};
+const layoutIcons = {auto:glyph('grid'),columns:glyph('columns'),rows:glyph('rows'),focus:glyph('focus')};
 const clampSidebar = width => Math.round(Math.max(44,Math.min(320,width)));
 function applySidebar(width) {
   width = clampSidebar(width);
@@ -22,7 +39,7 @@ function applySidebar(width) {
   return width;
 }
 function themeToggle() {
-  return h`<button class="theme-toggle" role="switch" aria-label="Tema escuro" aria-checked="${state.preferences.theme==='dark'}" data-action="theme" title="Alternar tema"><span aria-hidden="true">☀</span><span aria-hidden="true">☾</span><i class="theme-thumb"></i></button>`;
+  return h`<button class="theme-toggle" role="switch" aria-label="Tema escuro" aria-checked="${state.preferences.theme==='dark'}" data-action="theme" title="Alternar tema"><span aria-hidden="true">${glyph('sun')}</span><span aria-hidden="true">${glyph('moon')}</span><i class="theme-thumb"></i></button>`;
 }
 function audioToggle(a) {
   const sound = a.muted
@@ -63,6 +80,7 @@ function render() {
   applySidebar(sidebarDrag?.width ?? state.preferences.sidebarWidth ?? 152);
   el('empty-theme').classList.toggle('hidden',accounts.length>0);
   el('empty-theme').setAttribute('aria-checked',state.preferences.theme==='dark');
+  el('empty-theme').innerHTML = `<span aria-hidden="true">${glyph('sun')}</span><span aria-hidden="true">${glyph('moon')}</span><i class="theme-thumb"></i>`;
   el('workspace-title').textContent = workspace.name;
   el('workspaces').innerHTML = state.workspaces.map(w => `<button class="workspace-item ${w.id===workspace.id?'active':''}" data-action="workspace" data-id="${esc(w.id)}" title="${esc(w.name)}"><span class="work-icon">${esc(w.name.slice(0,1).toUpperCase())}</span><span class="row-label">${esc(w.name)}</span><span class="workspace-count">${state.accounts.filter(a=>a.workspaceId===w.id).length}</span></button>`).join('');
   el('sidebar-accounts').innerHTML = accounts.map(a => h`<button class="account-link ${a.id===state.selectedAccountId?'active':''}" data-action="select" data-id="${esc(a.id)}" data-account="${esc(a.id)}" title="${esc(a.name)} · ${esc(activityLabel(a))}"><span class="color-dot" title="Escolher cor"></span><span class="row-label">${esc(a.name)}</span><span class="mode-icon">${modeIcon(a)}</span></button>`).join('') || h`<div class="sidebar-empty">Crie sua primeira conta.</div>`;
@@ -70,7 +88,7 @@ function render() {
   const grid=el('grid');
   grid.className='panel-grid '+(accounts.length?workspace.layout:'');
   if (!accounts.length) {
-    grid.innerHTML=h`<div class="empty"><svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="astria-star-empty" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".45" stop-color="#bff3ff"/><stop offset="1" stop-color="#8b6cff"/></linearGradient></defs><path d="M12 1.5 13.6 10.4 22.5 12 13.6 13.6 12 22.5 10.4 13.6 1.5 12 10.4 10.4Z" fill="url(#astria-star-empty)"/><path d="M12 7.2 12.7 11.3 16.8 12 12.7 12.7 12 16.8 11.3 12.7 7.2 12 11.3 11.3Z" fill="#ffffff" transform="rotate(45 12 12)" opacity=".85"/></svg><h2>Seu próximo espaço.</h2><p>Adicione um jogo. Cada conta tem seu próprio login e pode ter uma cor e um modo de atividade.</p><button class="primary" data-action="add-account">Criar conta</button></div>`;
+    grid.innerHTML=h`<div class="empty"><img class="empty-mark" src="astria-mark.svg" alt="" aria-hidden="true"><h2>Seu próximo espaço.</h2><p>Adicione um jogo. Cada conta tem seu próprio login e pode ter uma cor e um modo de atividade.</p><button class="primary" data-action="add-account">Criar conta</button></div>`;
     scheduleLayout(); return;
   }
   const shown=workspace.layout==='focus'?[accounts.find(a=>a.id===state.selectedAccountId)||accounts[0]]:accounts;
@@ -78,8 +96,8 @@ function render() {
   grid.innerHTML=shown.map(a=>{
     const status=statuses[a.id]||{}, paused=a.activity==='suspended';
     return h`<article class="panel ${a.id===state.selectedAccountId?'selected':''}" data-panel="${esc(a.id)}" data-account="${esc(a.id)}">
-      <header class="panel-head"><button class="color-button" data-action="color" data-id="${esc(a.id)}" title="Escolher cor" aria-label="Cor de ${esc(a.name)}"><span class="color-dot"></span></button><button class="panel-title" data-action="select" data-id="${esc(a.id)}" title="${esc(a.name)} · ${esc(host(a.url))}">${esc(a.name)}</button><span class="panel-state ${status.error?'error':status.loading?'loading':''}" title="${esc(status.error||panelStatus(a.id))}">${status.error?'!':status.loading?'◌':''}</span><span class="panel-cost" data-cost="${esc(a.id)}"><span class="metric-ram"></span><span class="metric-cpu"></span></span>${audioToggle(a)}<div class="activity-controls" role="group" aria-label="Atividade de ${esc(a.name)}">${Object.entries({always:['∞',tr('Sempre ativa')],visible:['◉',tr('Ativa quando visível · descarrega após 1 minuto oculta')],suspended:['Ⅱ',tr('Suspender · liberar RAM')]}).map(([mode,[icon,label]])=>`<button data-action="activity" data-mode="${mode}" data-id="${esc(a.id)}" aria-label="${label}" title="${label}" aria-pressed="${a.activity===mode}">${icon}</button>`).join('')}</div><button class="icon-button layout-button" data-action="layout-menu" title="Layout dos painéis" aria-label="Layout dos painéis" aria-haspopup="menu">${layoutIcons[workspace.layout]}</button>${themeToggle()}<button class="icon-button reload-button" data-action="reload" data-id="${esc(a.id)}" title="Atualizar" aria-label="Atualizar ${esc(a.name)}">↻</button><button class="icon-button" data-action="account-menu" data-id="${esc(a.id)}" title="Opções da conta" aria-label="Opções de ${esc(a.name)}" aria-haspopup="menu">⋯</button></header>
-      <div class="panel-body" ${paused?'':`data-slot="${esc(a.id)}"`}>${paused?h`<div class="panel-placeholder"><span class="sleep-mark">Ⅱ</span><strong>${esc(a.name)} está suspensa</strong><p>A página foi descarregada para liberar RAM. Retomar abre o jogo com o perfil salvo.</p><button class="secondary" data-action="resume" data-id="${esc(a.id)}">Retomar conta</button></div>`:h`<div class="panel-placeholder">Abrindo ${esc(a.name)}…</div>`}</div>
+      <header class="panel-head"><button class="color-button" data-action="color" data-id="${esc(a.id)}" title="Escolher cor" aria-label="Cor de ${esc(a.name)}"><span class="color-dot"></span></button><button class="panel-title" data-action="select" data-id="${esc(a.id)}" title="${esc(a.name)} · ${esc(host(a.url))}">${esc(a.name)}</button><span class="panel-state ${status.error?'error':status.loading?'loading':''}" title="${esc(status.error||panelStatus(a.id))}">${status.error?'!':status.loading?'◌':''}</span><span class="panel-cost" data-cost="${esc(a.id)}"><span class="metric-ram"></span><span class="metric-cpu"></span></span>${audioToggle(a)}<div class="activity-controls" role="group" aria-label="Atividade de ${esc(a.name)}">${Object.entries({always:[glyph('always'),tr('Sempre ativa · desempenho máximo')],eco:[glyph('eco'),tr('Economia de energia')+' · '+(a.ecoFPS||15)+' FPS'],visible:[glyph('visible'),tr('Ativa quando visível · descarrega após 5 minutos oculta')],suspended:[glyph('pause'),tr('Suspender · liberar RAM')]}).map(([mode,[icon,label]])=>`<button data-action="activity" data-mode="${mode}" data-id="${esc(a.id)}" aria-label="${label}" title="${label}" aria-pressed="${a.activity===mode}">${icon}</button>`).join('')}</div><button class="icon-button layout-button" data-action="layout-menu" title="Layout dos painéis" aria-label="Layout dos painéis" aria-haspopup="menu">${layoutIcons[workspace.layout]}</button>${themeToggle()}<button class="icon-button reload-button" data-action="reload" data-id="${esc(a.id)}" title="Atualizar" aria-label="Atualizar ${esc(a.name)}">${glyph('reload')}</button><button class="icon-button" data-action="account-menu" data-id="${esc(a.id)}" title="Opções da conta" aria-label="Opções de ${esc(a.name)}" aria-haspopup="menu">${glyph('menu')}</button></header>
+      <div class="panel-body" ${paused?'':`data-slot="${esc(a.id)}"`}>${paused?h`<div class="panel-placeholder"><span class="sleep-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M9 8v8m6-8v8"/></svg></span><strong>${esc(a.name)} está suspensa</strong><p>A página foi descarregada para liberar RAM. Retomar abre o jogo com o perfil salvo.</p><button class="secondary" data-action="resume" data-id="${esc(a.id)}">Retomar conta</button></div>`:h`<div class="panel-placeholder">Abrindo ${esc(a.name)}…</div>`}</div>
     </article>`;
   }).join('');
   document.querySelectorAll('.panel[data-account]').forEach(node=>node.style.setProperty('--account-color',account(node.dataset.account).color));
@@ -167,10 +185,11 @@ function confirmImport() {
 function performanceHelp() {
   modal(h`<h2 id="modal-title">Atividade das contas</h2>
     <p class="sub"><strong>Sempre ativa</strong><br>Mantém a página carregada e os timers ativos ao trocar de conta ou espaço. Usa mais recursos.</p>
-    <p class="sub"><strong>Ativa quando visível</strong><br>Reduz a atividade quando oculta. Após um minuto, descarrega a página para liberar RAM. Ao voltar, o jogo reconecta.</p>
+    <p class="sub"><strong>Economia de energia</strong><br>Mantém a conta carregada e reduz os quadros de animação. O padrão é 15 FPS; escolha 10, 15 ou 30 FPS no menu da conta em Atividade. Timers, rede, animações CSS e workers continuam sob controle do jogo.</p>
+    <p class="sub"><strong>Ativa quando visível</strong><br>Reduz a atividade quando oculta. Após cinco minutos, descarrega a página para liberar RAM. Ao voltar, o jogo reconecta.</p>
     <p class="sub"><strong>Suspensa</strong><br>Descarrega imediatamente. Use Retomar conta para abrir novamente com o perfil salvo.</p>
     <p class="small-note">O cache dos jogos é separado por conta e fica dentro de Save. Várias contas ativas dividem os recursos da CPU e da GPU.</p>
-    <p class="small-note">Sempre ativa mantém o desenho e as atualizações ao trocar de conta ou espaço. Quando a janela é minimizada, o jogo recebe o estado normal de página oculta do navegador.</p>
+    <p class="small-note">Sempre ativa mantém a página carregada e os temporizadores ativos. Animações em segundo plano podem ter FPS reduzido. Ao minimizar, o jogo recebe o estado normal de página oculta do navegador.</p>
     <p class="small-note">Descarregar pode interromper a atividade online do jogo. A progressão offline depende de cada jogo. Escolha o modo no botão direito da conta.</p>
     <div class="modal-actions"><button class="primary" data-close>Entendi</button></div>`);
 }
@@ -250,7 +269,6 @@ document.addEventListener('keydown',e=>{
     if(e.key==='Tab'){const nodes=[...el('modal-root').querySelectorAll('input,button,[tabindex="0"]')];const first=nodes[0],last=nodes[nodes.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}
     return;
   }
-  if(e.key==='F5'||(e.ctrlKey&&e.key.toLowerCase()==='r')){e.preventDefault();if(state.selectedAccountId)call(api.reload,state.selectedAccountId);}
 });
 window.addEventListener('resize',scheduleLayout);
 el('content').addEventListener('scroll',scheduleLayout,{passive:true});

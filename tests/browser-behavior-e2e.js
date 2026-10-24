@@ -8,14 +8,20 @@ const { _electron: electron } = require('playwright');
 const root = path.resolve(__dirname, '..');
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'astria-browser-'));
 let application, page;
+const shortcuts = [
+  ['W', ['control']], ['W', ['alt']], ['W', ['control', 'shift']],
+  ['R', ['control']], ['R', ['control', 'shift']], ['F5', []],
+  ['T', ['control']], ['N', ['control']], ['L', ['control']], ['F11', []]
+];
+const recordKey = "({key:e.key.toLowerCase(),control:e.ctrlKey,alt:e.altKey,shift:e.shiftKey})";
 const server = http.createServer((request, response) => {
   response.setHeader('content-type', 'text/html');
-  if (request.url === '/inner') { response.end('<!doctype html><input id="nested-chat"><script>window.frameKeys=[];document.addEventListener("keydown",e=>frameKeys.push(e.key));</script>'); return; }
+  if (request.url === '/inner') { response.end('<!doctype html><input id="nested-chat"><script>window.frameKeys=[];document.addEventListener("keydown",e=>frameKeys.push(' + recordKey + '));</script>'); return; }
   response.end(`<!doctype html><title>Browser behavior fixture</title><input id="chat"><canvas></canvas><iframe src="/inner"></iframe><script>
     window.initialViewport={width:innerWidth,height:innerHeight};
     window.instance=crypto.randomUUID();window.keys=[];
     window.gameState={map:location.hash,buffs:['fixture-buff']};
-    document.addEventListener('keydown',e=>keys.push(e.key));
+    document.addEventListener('keydown',e=>keys.push(${recordKey}));
   </script>`);
 });
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -42,6 +48,19 @@ async function key(keyCode, modifiers = []) {
   }, { keyCode, modifiers });
   await delay(80);
 }
+async function checkShortcuts(id, count, expression = 'keys') {
+  const before = await inGame(id, '({instance,gameState})');
+  for (const [keyCode, modifiers] of shortcuts) {
+    const length = await inGame(id, expression + '.length');
+    await key(keyCode, modifiers);
+    const received = await inGame(id, expression);
+    const label = modifiers.concat(keyCode).join('+');
+    assert.equal(received.length, length + 1, id + ': game receives ' + label);
+    assert.deepEqual(received.at(-1), {key:keyCode.toLowerCase(),control:modifiers.includes('control'),alt:modifiers.includes('alt'),shift:modifiers.includes('shift')}, label + ': modifiers are preserved');
+    assert.equal(await application.evaluate(({ BaseWindow }) => BaseWindow.getAllWindows().length), count, label + ': no browser window opened or closed');
+    assert.deepEqual(await inGame(id, '({instance,gameState})'), before, label + ': page was not reloaded');
+  }
+}
 (async () => {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const base = 'http://127.0.0.1:' + server.address().port + '/';
@@ -67,11 +86,7 @@ async function key(keyCode, modifiers = []) {
     const before = await inGame(id, 'keys.length');
     await key('W');
     assert.equal(await inGame(id, 'keys.length'), before + 1, 'game receives W without a second click');
-    for (const modifiers of [['control'], ['alt'], ['control', 'shift']]) {
-      await key('W', modifiers);
-      assert.equal(await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length), 1, 'close shortcut must not close the app');
-    }
-    assert.equal(await inGame(id, 'keys.filter(k=>k.toLowerCase()==="w").length'), before + 1, 'blocked close chords do not reach the game');
+    await checkShortcuts(id, 1);
     assert.deepEqual(await inGame(id, '({initialViewport,instance,gameState})'), snapshots[id], 'switching preserves the page, map and buffs in memory');
   }
   await inGame('background', 'document.querySelector("iframe").contentDocument.querySelector("#nested-chat").focus();true');
@@ -81,10 +96,17 @@ async function key(keyCode, modifiers = []) {
   await until(() => focusedGame('background'), 'return to nested game frame');
   await key('W');
   assert.equal(await inGame('background', 'document.querySelector("iframe").contentWindow.frameKeys.length'), 1, 'returning to an embedded game restores keyboard input in its iframe');
+  await checkShortcuts('background', 1, 'document.querySelector("iframe").contentWindow.frameKeys');
   await page.locator('.workspace-item[data-id="other"]').click();
   await until(() => focusedGame('other'), 'workspace click focuses its page');
   await key('W');
-  assert.ok((await inGame('other', 'keys')).includes('w'), 'workspace game immediately receives keyboard input');
+  assert.ok((await inGame('other', 'keys')).some(e=>e.key==='w'), 'workspace game immediately receives keyboard input');
+  await application.evaluate(({ BaseWindow }) => BaseWindow.getAllWindows()[0].webContents.focus());
+  await page.evaluate(() => { window.shortcutUiInstance=crypto.randomUUID(); });
+  const uiInstance = await page.evaluate(() => window.shortcutUiInstance);
+  for (const [keyCode, modifiers] of shortcuts) await key(keyCode, modifiers);
+  assert.equal(await page.evaluate(() => window.shortcutUiInstance), uiInstance, 'browser shortcuts do not reload Astria UI');
+  for (const id of ['front', 'background', 'other']) assert.deepEqual(await inGame(id, '({initialViewport,instance,gameState})'), snapshots[id], 'UI shortcuts do not reload games');
   await page.locator('#add-account').click();
   await page.waitForSelector('#account-name');
   for (const modifiers of [['control'], ['alt'], ['control', 'shift']]) await key('W', modifiers);
@@ -100,17 +122,14 @@ async function key(keyCode, modifiers = []) {
   assert.equal(await inGame('other', 'document.activeElement.id'), 'chat', 'ordinary updates preserve the game chat caret');
   for (const id of ['front', 'background', 'other']) assert.deepEqual(await inGame(id, '({initialViewport,instance,gameState})'), snapshots[id], 'no hidden account is reloaded on a switch');
   await inGame('other', 'window.open(location.origin+"/#popup");true');
-  await until(() => application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length === 2), 'game popup');
+  await until(() => application.evaluate(({ BaseWindow }) => BaseWindow.getAllWindows().length === 2), 'game popup');
   await until(() => focusedGame('popup'), 'popup focus');
-  for (const modifiers of [['control'], ['alt'], ['control', 'shift']]) {
-    await key('W', modifiers);
-    assert.equal(await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length), 2, 'close shortcut must not close a game popup');
-  }
-  await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => w.webContents.getURL().endsWith('#popup')).close());
+  await checkShortcuts('popup', 2);
+  await application.evaluate(({ BaseWindow }) => BaseWindow.getAllWindows().find(w => w.webContents.getURL().endsWith('#popup')).close());
   fs.mkdirSync(path.join(root, 'test-results'), { recursive: true });
-  fs.writeFileSync(path.join(root, 'test-results', 'astria-browser-behavior.json'), JSON.stringify({ passed: true, checks: ['usable initial hidden viewport', 'sidebar keyboard focus', 'embedded game iframe focus', 'workspace keyboard focus', 'Ctrl+W/Alt+W/Ctrl+Shift+W blocked in games, UI and popups', 'ordinary W preserved', 'dialog focus', 'chat focus', 'page/map/buff state preserved across switches'] }, null, 2));
-  console.log('PASS: browser viewport, immediate account keyboard focus, close shortcuts blocked, dialog/chat focus and unchanged live game state');
+  fs.writeFileSync(path.join(root, 'test-results', 'astria-browser-behavior.json'), JSON.stringify({ passed: true, checks: ['usable initial hidden viewport', 'sidebar keyboard focus', 'embedded game iframe focus', 'workspace keyboard focus', 'game shortcut keys and modifiers preserved in pages, iframes and popups', 'no browser reload/close shortcuts in Astria UI', 'ordinary W preserved', 'dialog focus', 'chat focus', 'page/map/buff state preserved across switches'] }, null, 2));
+  console.log('PASS: game shortcuts and modifiers delivered without browser actions; account/iframe focus, dialog/chat focus and live game state preserved');
 })().catch(async error => {
   console.error(error); process.exitCode = 1;
-  if (application) console.error(await application.evaluate(({ BrowserWindow, webContents }) => ({ focused: webContents.getFocusedWebContents()?.getURL(), windows: BrowserWindow.getAllWindows().map(w => ({ focused: w.isFocused(), visible: w.isVisible(), children: w.contentView.children.filter(v => v.webContents).length })) })).catch(() => 'Application unavailable'));
+  if (application) console.error(await application.evaluate(({ BaseWindow, webContents }) => ({ focused: webContents.getFocusedWebContents()?.getURL(), windows: BaseWindow.getAllWindows().map(w => ({ focused: w.isFocused(), visible: w.isVisible(), children: w.contentView.children.filter(v => v.webContents).length })) })).catch(() => 'Application unavailable'));
 }).finally(async () => { if (application) await application.close(); server.close(); });

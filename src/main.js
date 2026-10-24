@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, WebContentsView, View, ipcMain, session, dialog, nativeTheme, Menu, shell } = require('electron');
+const { app, BaseWindow, WebContentsView, ipcMain, session, dialog, nativeTheme, Menu, shell } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
@@ -53,20 +53,20 @@ const viewStatuses = new Map();
 const boundsForAccounts = new Map();
 const idleTimers = new Map();
 const actions = new Map();
-const activityModes = new Set(['always', 'visible', 'suspended']);
+const activityModes = new Set(['always', 'eco', 'visible', 'suspended']);
+const ecoRates = [10, 15, 30];
+const ecoFPS = account => ecoRates.includes(account.ecoFPS) ? account.ecoFPS : 15;
+const backgroundMode = mode => mode === 'always' || mode === 'eco';
 const colors = { mint: '#46bfa8', blue: '#559ce8', violet: '#a78bed', amber: '#d7a744', rose: '#d981b0', red: '#e97778', slate: '#91a2b8' };
 const normalizeColor = color => typeof color === 'string' && /^#[a-f\d]{6}$/i.test(color) ? color.toLowerCase() : typeof color === 'string' && Object.hasOwn(colors, color) ? colors[color] : null;
 const sidebarWidth = value => Math.max(44, Math.min(320, Math.round(value)));
-const idleDelay = !app.isPackaged && process.env.ASTRIA_IDLE_MS ? Math.max(50, Number(process.env.ASTRIA_IDLE_MS) || 60000) : 60000;
+const idleDelay = !app.isPackaged && process.env.ASTRIA_IDLE_MS ? Math.max(50, Number(process.env.ASTRIA_IDLE_MS) || 300000) : 300000;
 const initialLoadLimit = !app.isPackaged && process.env.ASTRIA_INITIAL_LOAD_MS ? Math.max(100, Number(process.env.ASTRIA_INITIAL_LOAD_MS) || 10000) : 10000;
 const modeFor = account => activityModes.has(account.activity) ? account.activity : 'visible';
 
-// Do not let Electron's implicit Close accelerator quit all running games.
-// Apply the same rule to the local interface, game views and login popups.
+// Disable app menu shortcuts without swallowing keys meant for the game.
 app.on('web-contents-created', (_event, contents) => {
-  contents.on('before-input-event', (event, input) => {
-    if (input.type === 'keyDown' && input.key?.toLowerCase() === 'w' && (input.control || input.alt || input.meta)) event.preventDefault();
-  });
+  contents.setIgnoreMenuShortcuts(true);
 });
 
 function requestAccountFocus(id = state?.selectedAccountId, afterLayout = true) {
@@ -130,7 +130,7 @@ function normalizeImport(json) {
     try {
       const id = hasId(a.id) && !used.has(a.id) ? a.id : randomUUID();
       used.add(id);
-      accounts.push({ id, workspaceId: a.workspaceId, name: safeString(a.name, 55) || T('Conta'), url: safeURL(a.url), muted: !!a.muted, zoom: Math.max(0.5, Math.min(2, Number(a.zoom) || 1)), color: normalizeColor(a.color) || colors.mint, activity: modeFor(a) });
+      accounts.push({ id, workspaceId: a.workspaceId, name: safeString(a.name, 55) || T('Conta'), url: safeURL(a.url), muted: !!a.muted, zoom: Math.max(0.5, Math.min(2, Number(a.zoom) || 1)), color: normalizeColor(a.color) || colors.mint, activity: modeFor(a), ecoFPS: ecoFPS(a) });
     } catch { /* skip malformed or unsupported entry */ }
   }
   return {
@@ -190,6 +190,25 @@ function finishInitialLoad(id, view) {
   if (!quitting && windowMain && !windowMain.isDestroyed()) setImmediate(refreshViews);
 }
 
+function setFrameLimit(contents, account, force = false) {
+  if (contents.isDestroyed()) return;
+  const fps = modeFor(account) === 'eco' ? ecoFPS(account) : 0;
+  if (!force && contents.astriaFPS === fps) return;
+  contents.astriaFPS = fps;
+  for (const frame of contents.mainFrame.framesInSubtree) {
+    if (!frame.isDestroyed()) frame.send('astria:frame-limit', fps);
+  }
+}
+
+function configureGameFrames(contents, accountId) {
+  const sync = () => {
+    const account = state.accounts.find(a => a.id === accountId);
+    if (account) setFrameLimit(contents, account, true);
+  };
+  contents.on('dom-ready', sync);
+  contents.on('frame-created', (_event, { frame }) => frame.once('dom-ready', sync));
+}
+
 function makeView(account) {
   if (quitting || closingViews.has(account.id)) return null;
   if (views.has(account.id)) return views.get(account.id);
@@ -208,7 +227,10 @@ function makeView(account) {
       contextIsolation: true,
       sandbox: true,
       webSecurity: true,
-      backgroundThrottling: modeFor(account) !== 'always',
+      backgroundThrottling: !backgroundMode(modeFor(account)),
+      preload: path.join(__dirname, 'game-preload.js'),
+      nodeIntegrationInSubFrames: true,
+      additionalArguments: ['--astria-fps=' + (modeFor(account) === 'eco' ? ecoFPS(account) : 0)],
       javascript: true,
       // Games rarely need spellcheck; it costs a dictionary and work per keystroke.
       spellcheck: false,
@@ -217,7 +239,8 @@ function makeView(account) {
     }
   });
   view.activityMode = modeFor(account);
-  view.throttled = modeFor(account) !== 'always';
+  view.throttled = !backgroundMode(modeFor(account));
+  configureGameFrames(view.webContents, account.id);
   views.set(account.id, view);
   // A broken/slow website must not hold the startup queue indefinitely.
   initialLoads.set(account.id, { view, timer: setTimeout(() => finishInitialLoad(account.id, view), initialLoadLimit) });
@@ -252,12 +275,15 @@ function makeView(account) {
       return { action: 'allow', overrideBrowserWindowOptions: {
         parent: windowMain,
         width: 960, height: 760,
-        webPreferences: { partition, nodeIntegration: false, contextIsolation: true, sandbox: true, spellcheck: false }
+        webPreferences: { partition, nodeIntegration: false, contextIsolation: true, sandbox: true, spellcheck: false,
+          preload: path.join(__dirname, 'game-preload.js'), nodeIntegrationInSubFrames: true,
+          additionalArguments: ['--astria-fps=' + (modeFor(account) === 'eco' ? ecoFPS(account) : 0)] }
       } };
     } catch { return { action: 'deny' }; }
   });
   view.webContents.on('did-create-window', child => {
     view.popups.add(child);
+    configureGameFrames(child.webContents, account.id);
     child.webContents.setAudioMuted(!!accountById(account.id).muted);
     child.on('closed', () => view.popups.delete(child));
     child.webContents.on('will-navigate', allowWebNavigation);
@@ -275,14 +301,6 @@ function makeView(account) {
   view.webContents.on('render-process-gone', (_event, details) => {
     finishInitialLoad(account.id, view);
     setStatus(account.id, { error: T('Processo encerrado: ') + details.reason });
-  });
-  view.webContents.on('before-input-event', (event, input) => {
-    if (input.type !== 'keyDown') return;
-    if (input.key === 'F5' || (input.control && input.key.toLowerCase() === 'r')) {
-      event.preventDefault();
-      if (input.shift) view.webContents.reloadIgnoringCache();
-      else view.webContents.reload();
-    }
   });
   Promise.resolve().then(() => {
     if (views.get(account.id) === view && !view.webContents.isDestroyed()) return view.webContents.loadURL(account.url);
@@ -368,11 +386,13 @@ function refreshViews() {
   for (const account of state.accounts) {
     const view = views.get(account.id);
     if (!view) continue;
-    const throttled = modeFor(account) !== 'always' || !windowVisible;
+    const throttled = !backgroundMode(modeFor(account)) || !windowVisible;
     if (view.throttled !== throttled) {
       view.webContents.setBackgroundThrottling(throttled);
       view.throttled = throttled;
     }
+    setFrameLimit(view.webContents, account);
+    for (const child of view.popups) if (!child.isDestroyed()) setFrameLimit(child.webContents, account);
   }
   for (const account of state.accounts) {
     const mode = modeFor(account), onScreen = visible.has(account.id);
@@ -381,7 +401,7 @@ function refreshViews() {
       setStatus(account.id, { queued: false, sleeping: true, loading: false, error: '' });
       continue;
     }
-    if (mode === 'always' || onScreen) {
+    if (backgroundMode(mode) || onScreen) {
       clearTimeout(idleTimers.get(account.id)); idleTimers.delete(account.id);
       const view = views.get(account.id);
       if (!view) {
@@ -395,10 +415,8 @@ function refreshViews() {
         view.setVisible(true);
         placeView(view, 'above');
       } else {
-        // Keep Always active surfaces attached and drawing behind the opaque
-        // interface. Detaching stops rAF while backgroundThrottling:false still
-        // reports document.visibilityState='visible', so games cannot use their
-        // normal hidden-page fallback and their frame-driven state can stall.
+        // Keep full-sized background surfaces below the actual UI page.
+        // Hiding or moving them outside the window slows frame-driven games.
         view.setVisible(windowVisible);
         placeView(view, 'below');
       }
@@ -479,7 +497,7 @@ function trustedSender(event) {
 function updateTitleBar() {
   if (process.platform !== 'win32' || !windowMain || windowMain.isDestroyed()) return;
   const light = state.preferences.theme === 'light';
-  windowMain.setTitleBarOverlay({ color: light ? '#f7f9fc' : '#10151f', symbolColor: light ? '#243247' : '#dbe5f3', height: 36 });
+  windowMain.setTitleBarOverlay({ color: light ? '#ffffff' : '#121a29', symbolColor: light ? '#243247' : '#dbe5f3', height: 36 });
 }
 
 function uiCommand(type, id) {
@@ -510,16 +528,18 @@ function showAccountMenu(id, point, params) {
     { label: T('Escolher cor…'), click: () => uiCommand('account-color', id) },
     { type: 'separator' },
     { label: T('Atividade'), submenu: [
-      { label: T('Sempre ativa'), type: 'radio', checked: modeFor(a) === 'always', click: () => runAction('account:activity', id, 'always') },
+      { label: T('Sempre ativa · desempenho máximo'), type: 'radio', checked: modeFor(a) === 'always', click: () => runAction('account:activity', id, 'always') },
+      { label: T('Economia de energia'), type: 'radio', checked: modeFor(a) === 'eco', click: () => runAction('account:activity', id, 'eco') },
+      { label: T('FPS em economia'), submenu: ecoRates.map(fps => ({label: fps + ' FPS', type: 'radio', checked: ecoFPS(a) === fps, click: () => runAction('account:eco-fps', id, fps)})) },
       { label: T('Ativa quando visível'), type: 'radio', checked: modeFor(a) === 'visible', click: () => runAction('account:activity', id, 'visible') },
       { label: T('Suspender agora · liberar RAM'), type: 'radio', checked: modeFor(a) === 'suspended', click: () => runAction('account:activity', id, 'suspended') },
       { type: 'separator' },
-      { label: T('Quando oculta: descarrega após 1 minuto'), enabled: false },
+      { label: T('Quando oculta: descarrega após 5 minutos'), enabled: false },
       { label: T('Ao retomar, o jogo reconecta'), enabled: false }
     ] },
     { type: 'separator' },
-    { label: T('Atualizar'), accelerator: 'F5', enabled: !!v, click: () => runAction('view:reload', id) },
-    { label: T('Atualizar sem cache'), accelerator: 'CmdOrCtrl+Shift+R', enabled: !!v, click: () => runAction('view:reload', id, true) },
+    { label: T('Atualizar'), enabled: !!v, click: () => runAction('view:reload', id) },
+    { label: T('Atualizar sem cache'), enabled: !!v, click: () => runAction('view:reload', id, true) },
     { label: T('Endereço inicial'), click: () => runAction('view:home', id) },
     { label: a.muted ? T('Ativar áudio') : T('Silenciar'), click: () => runAction('view:mute', id) },
     { label: `Zoom · ${Math.round(a.zoom * 100)}%`, submenu: [
@@ -561,7 +581,7 @@ function showAppMenu(point) {
     { label: T('Desempenho'), submenu: [
       { label: T`${views.size} painéis carregados · ~${memory} MB no aplicativo`, enabled: false },
       { label: T('Cache nativo independente por conta'), enabled: false },
-      { label: T('Ativa quando visível economiza RAM após 1 minuto'), enabled: false },
+      { label: T('Ativa quando visível economiza RAM após 5 minutos'), enabled: false },
       { label: T('Suspender descarrega o painel imediatamente'), enabled: false },
       { label: T('Sobre os modos…'), click: () => uiCommand('performance-help') }
     ] },
@@ -631,7 +651,7 @@ function registerIPC() {
       id: randomUUID(), workspaceId: state.activeWorkspaceId,
       name: safeString(data?.name, 55) || T`Conta ${currentAccounts().length + 1}`,
       url: safeURL(data?.url), muted: false, zoom: 1,
-      color: normalizeColor(data?.color) || colors.mint, activity: 'visible'
+      color: normalizeColor(data?.color) || colors.mint, activity: 'visible', ecoFPS: 15
     };
     state.accounts.push(account); state.selectedAccountId = account.id;
     requestAccountFocus();
@@ -673,6 +693,11 @@ function registerIPC() {
     if (!activityModes.has(mode)) throw new Error(T('Modo de atividade inválido.'));
     accountById(id).activity = mode;
     if (id === state.selectedAccountId && mode !== 'suspended') requestAccountFocus();
+    publish(); return { ok: true };
+  });
+  listen('account:eco-fps', (id, fps) => {
+    if (!ecoRates.includes(fps)) throw new Error(T('FPS inválido.'));
+    accountById(id).ecoFPS = fps;
     publish(); return { ok: true };
   });
   listen('view:reload', (id, ignoreCache = false) => {
@@ -788,24 +813,23 @@ function createMainWindow() {
   allowWindowClose = false; closingApplication = undefined; quitAfterClosing = false; quitting = false;
   layoutReady = false;
   windowShown = false;
-  windowMain = new BrowserWindow({
+  windowMain = new BaseWindow({
     width: 1500, height: 950, minWidth: 780, minHeight: 500,
     show: false,
     backgroundColor: '#0b1020',
     title: 'Astria',
     icon: path.join(__dirname, 'astria.ico'),
     titleBarStyle: 'hidden',
-    titleBarOverlay: process.platform === 'win32' ? { color: state.preferences.theme === 'light' ? '#f7f9fc' : '#10151f', symbolColor: state.preferences.theme === 'light' ? '#243247' : '#dbe5f3', height: 36 } : false,
-    autoHideMenuBar: true,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      nodeIntegration: false, contextIsolation: true, sandbox: true
-    }
+    titleBarOverlay: process.platform === 'win32' ? { color: state.preferences.theme === 'light' ? '#ffffff' : '#121a29', symbolColor: state.preferences.theme === 'light' ? '#243247' : '#dbe5f3', height: 36 } : false,
+    autoHideMenuBar: true
   });
-  // Separate the trusted UI layer from the native container. Active background
-  // games stay below the UI; only on-screen games are placed above it.
-  interfaceView = windowMain.contentView;
-  windowMain.setContentView(new View());
+  // The interface is a real page in the native stack, not an empty View.
+  // It covers background games without exchanging their sessions or bounds.
+  interfaceView = new WebContentsView({ webPreferences: {
+    preload: path.join(__dirname, 'preload.js'),
+    nodeIntegration: false, contextIsolation: true, sandbox: true
+  } });
+  windowMain.webContents = interfaceView.webContents;
   windowMain.contentView.addChildView(interfaceView);
   const resizeInterface = () => {
     const [width, height] = windowMain.getContentSize();
@@ -814,15 +838,14 @@ function createMainWindow() {
     if (width > 0 && height > 0) interfaceView.setBounds({ x: 0, y: 0, width, height });
   };
   resizeInterface();
-  // Wait for the first frame before showing a window launched by the hidden
-  // update worker. Showing its unpainted surface can leave it blank until resize.
-  windowMain.once('ready-to-show', () => {
+  // BaseWindow has no implicit page or ready-to-show event.
+  windowMain.webContents.once('did-finish-load', () => {
     if (windowMain && !windowMain.isDestroyed()) {
       windowShown = true;
       windowMain.show();
     }
   });
-  windowMain.loadFile(path.join(__dirname, 'index.html'));
+  windowMain.webContents.loadFile(path.join(__dirname, 'index.html'));
   windowMain.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   windowMain.webContents.on('will-navigate', event => event.preventDefault());
   windowMain.on('close', event => {
@@ -831,9 +854,12 @@ function createMainWindow() {
     closeApplication();
   });
   windowMain.on('closed', () => {
+    const contents = interfaceView?.webContents;
     clearTimeout(metricsTimer); metricsTimer = undefined;
     for (const id of [...views.keys()]) destroyView(id);
     boundsForAccounts.clear(); overlayOpen = false; windowMain = null; interfaceView = null;
+    // Child WebContentsView pages need explicit lifetime management.
+    if (contents && !contents.isDestroyed()) contents.close();
   });
   windowMain.on('resize', () => {
     if (!windowMain.isDestroyed()) { resizeInterface(); windowMain.webContents.send('window:resized'); }
@@ -883,7 +909,7 @@ if (ownsInstance) app.whenReady().then(() => {
   writeAccountGuide(storage, state);
   nativeTheme.themeSource = state.preferences.theme;
   registerIPC(); createMainWindow();
-  app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createMainWindow(); });
+  app.on('activate', () => { if (BaseWindow.getAllWindows().length === 0) createMainWindow(); });
 });
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
