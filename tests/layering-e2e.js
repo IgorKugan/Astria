@@ -37,10 +37,10 @@ async function layers() {
   const url = 'http://127.0.0.1:' + server.address().port;
   fs.writeFileSync(path.join(profile, 'config.json'), JSON.stringify({
     activeWorkspaceId: 'front-workspace', selectedAccountId: 'front',
-    workspaces: [{ id: 'front-workspace', name: 'Huntera', layout: 'focus' }, { id: 'background-workspace', name: 'YYGIdle', layout: 'focus' }],
+    workspaces: [{ id: 'front-workspace', name: 'Foreground', layout: 'focus' }, { id: 'background-workspace', name: 'Background', layout: 'focus' }],
     accounts: [
-      { id: 'front', name: 'Huntera', workspaceId: 'front-workspace', url: url + '/?id=front', activity: 'always' },
-      { id: 'background', name: 'YYGIdle', workspaceId: 'background-workspace', url: url + '/?id=background', activity: 'always' }
+      { id: 'front', name: 'Front account', workspaceId: 'front-workspace', url: url + '/?id=front', activity: 'always' },
+      { id: 'background', name: 'Background account', workspaceId: 'background-workspace', url: url + '/?id=background', activity: 'always' }
     ], preferences: { theme: 'dark', language: 'en' }
   }));
   const env = { ...process.env, MULTINEST_USER_DATA: profile }; delete env.ELECTRON_RUN_AS_NODE;
