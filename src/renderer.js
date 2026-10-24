@@ -19,7 +19,7 @@ const glyph = name => {
     rows: '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 12h18"/>',
     focus: '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 8h8v8H8z"/>',
     always: '<path d="M4 19a9 9 0 1 1 16 0M5 13H3m4-6 1.5 1.5M12 4v2m6-1-5 7"/><circle cx="12" cy="13" r="2"/>',
-    eco: '<path d="M5 21V4m0 1c5-5 9 5 15 0v10c-6 5-10-5-15 0"/>',
+    eco: '<rect x="2" y="6" width="18" height="12" rx="2"/><path d="M22 10v4M12 8l-3 5h5l-3 3"/>',
     visible: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>',
     pause: '<path d="M9 5v14m6-14v14"/>',
     reload: '<path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 7a7 7 0 0 1 12-1l2 3M4 15l2 3a7 7 0 0 0 12-1"/>',
@@ -185,7 +185,8 @@ function confirmImport() {
 function performanceHelp() {
   modal(h`<h2 id="modal-title">Atividade das contas</h2>
     <p class="sub"><strong>Sempre ativa</strong><br>Mantém a página carregada e os timers ativos ao trocar de conta ou espaço. Usa mais recursos.</p>
-    <p class="sub"><strong>Economia de energia</strong><br>Mantém a conta carregada e reduz os quadros de animação. O padrão é 15 FPS; escolha 10, 15 ou 30 FPS no menu da conta em Atividade. Timers, rede, animações CSS e workers continuam sob controle do jogo.</p>
+    <p class="sub"><strong>Economia de energia</strong><br>Mantém a conta carregada e reduz os quadros de animação. O padrão é 15 FPS; escolha 1, 5, 10, 15 ou 30 FPS no menu da conta em Atividade. Timers, rede, animações CSS e workers continuam sob controle do jogo.</p>
+    <p class="small-note">Economia de energia reduz o trabalho de animação, mas os dados e as imagens usados pelo jogo continuam na RAM. O consumo mínimo depende do jogo; não há um limite fixo de memória enquanto ele continua conectado.</p>
     <p class="sub"><strong>Ativa quando visível</strong><br>Reduz a atividade quando oculta. Após cinco minutos, descarrega a página para liberar RAM. Ao voltar, o jogo reconecta.</p>
     <p class="sub"><strong>Suspensa</strong><br>Descarrega imediatamente. Use Retomar conta para abrir novamente com o perfil salvo.</p>
     <p class="small-note">O cache dos jogos é separado por conta e fica dentro de Save. Várias contas ativas dividem os recursos da CPU e da GPU.</p>

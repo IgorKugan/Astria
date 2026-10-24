@@ -54,7 +54,7 @@ const boundsForAccounts = new Map();
 const idleTimers = new Map();
 const actions = new Map();
 const activityModes = new Set(['always', 'eco', 'visible', 'suspended']);
-const ecoRates = [10, 15, 30];
+const ecoRates = [1, 5, 10, 15, 30];
 const ecoFPS = account => ecoRates.includes(account.ecoFPS) ? account.ecoFPS : 15;
 const backgroundMode = mode => mode === 'always' || mode === 'eco';
 const colors = { mint: '#46bfa8', blue: '#559ce8', violet: '#a78bed', amber: '#d7a744', rose: '#d981b0', red: '#e97778', slate: '#91a2b8' };

@@ -128,6 +128,8 @@ async function advancing(label, requireFrames = true) {
     await delay(100);
   }
   await capped(15,'popup inherits account budget','#popup');
+  await page.evaluate(()=>window.multiNest.accountEcoFPS('account-1',1));await capped(1,'minimum 1 FPS','#popup');
+  await page.evaluate(()=>window.multiNest.accountEcoFPS('account-1',5));await capped(5,'low 5 FPS','#popup');
   assert.equal((await page.evaluate(()=>window.multiNest.accountEcoFPS('account-1',10))).ok,true);
   assert.equal((await page.evaluate(()=>window.multiNest.accountEcoFPS('account-1',11))).ok,false,'unsupported frame budget rejected');
   await capped(10,'existing popup follows new budget','#popup');

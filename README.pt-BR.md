@@ -43,13 +43,13 @@ Abra **☰ → Idioma → English / Português (Brasil)**. A escolha fica salva 
 | Modo | Comportamento |
 | --- | --- |
 | Sempre ativa / desempenho máximo | Ícone de velocímetro. Mantém a página carregada e não impõe limite de FPS às animações. Usa mais recursos. |
-| Economia de energia | Ícone de bandeira ondulada. Mantém a conta carregada em outros espaços e limita os quadros de animação a 15 FPS por padrão. |
+| Economia de energia | Ícone de bateria com raio. Mantém a conta carregada em outros espaços e limita os quadros de animação a 15 FPS por padrão. |
 | Ativa quando visível | Reduz atividade em segundo plano e descarrega uma página oculta após cinco minutos. Ao voltar, reconecta o jogo. |
 | Suspensa | Descarrega imediatamente. Retomar reabre o mesmo perfil salvo. |
 
-Economia de energia fica imediatamente após desempenho máximo. Clique com o botão direito na conta e escolha **Atividade → FPS em economia → 10 / 15 / 30 FPS**. A escolha é salva por conta e também vale com a página visível. Trocar entre desempenho máximo e economia mantém a mesma página e sessão.
+Economia de energia fica imediatamente após desempenho máximo. Clique com o botão direito na conta e escolha **Atividade → FPS em economia → 1 / 5 / 10 / 15 / 30 FPS**. A escolha é salva por conta e também vale com a página visível. Trocar entre desempenho máximo e economia mantém a mesma página e sessão. O agendador espera entre os quadros permitidos, em vez de verificar cada atualização do monitor; desempenho máximo retoma imediatamente sem essa espera.
 
-A economia limita callbacks de requestAnimationFrame na página, nos frames incorporados e nos popups da conta. Relógios, timers, rede, animações CSS e workers continuam nativos; por isso não há garantia de um consumo fixo de CPU ou energia. Jogos que calculam progresso por quadro podem se comportar de outra forma com FPS reduzido. O FPS real pode ficar abaixo da meta quando a página estiver coberta, minimizada ou sob carga. A página carregada continua usando RAM; Suspensa libera essa memória.
+A economia limita callbacks de requestAnimationFrame na página, nos frames incorporados e nos popups da conta. Relógios, timers, rede, animações CSS e workers continuam nativos; por isso não há garantia de um consumo fixo de CPU ou energia. Jogos que calculam progresso por quadro podem se comportar de outra forma com FPS reduzido. O FPS real pode ficar abaixo da meta quando a página estiver coberta, minimizada ou sob carga. A página continua usando RAM para dados ativos, imagens e outros recursos do jogo; reduzir FPS não remove esses arquivos nem impõe um limite fixo seguro de memória. Economia de energia nunca descarrega a conta. Suspensa libera a memória do processo da página e desconecta o jogo.
 
 Descarregar pode desconectar o personagem. A progressão offline depende do jogo. As métricas não incluem o custo compartilhado do aplicativo/GPU. A compatibilidade depende do site e de sua autenticação.
 

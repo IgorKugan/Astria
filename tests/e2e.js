@@ -183,6 +183,12 @@ async function readStorage(id) {
   assert.match(await page.locator('[data-mode="visible"]').first().getAttribute('title'),/5 minutos/);
   await page.locator('[data-mode="eco"]').first().click();
   await page.waitForSelector('[data-mode="eco"][aria-pressed="true"]');
+  await firstLink.click({button:'right'});await clickMenu(['Atividade','FPS em economia','5 FPS']);
+  await page.waitForFunction(()=>document.querySelector('[data-mode="eco"][aria-pressed="true"]').title.includes('5 FPS'));
+  await appMenu('Desempenho','Sobre os modos…');
+  await page.waitForSelector('#modal-root:not(.hidden)');
+  assert.match(await page.locator('#modal-root').textContent(),/continuam na RAM/);
+  await page.keyboard.press('Escape');
   await firstLink.click({button:'right'});await clickMenu(['Atividade','FPS em economia','10 FPS']);
   await page.waitForFunction(()=>document.querySelector('[data-mode="eco"][aria-pressed="true"]').title.includes('10 FPS'));
   await page.locator('[data-mode="visible"]').first().click();

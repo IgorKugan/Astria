@@ -36,6 +36,8 @@ server.on('upgrade', (req, socket) => {
   const accept = createHash('sha1').update(req.headers['sec-websocket-key'] + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
   socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ' + accept + '\r\n\r\n');
   socket.write(Buffer.from([0x81, 2, 111, 107]));
+  const heartbeat=setInterval(()=>socket.write(Buffer.from([0x81, 2, 111, 107])),100);
+  socket.once('close',()=>clearInterval(heartbeat));
   socket.on('data', () => socket.end()); socket.on('error', () => {});
 });
 async function until(fn, description) {
@@ -56,6 +58,14 @@ async function inView(id, script) { return app.evaluate(({ webContents }, { id, 
   await launch();
   for (let i = 0; i < 2; i++) assert.equal((await page.evaluate(url => window.multiNest.accountAdd({ name: 'Isolated', url }), base)).ok, true);
   let ids = await until(async () => { const value = await views(); return value.length === 2 && value; }, 'two loaded pages');
+  await inView(ids[0],`(()=>{window.onlineMessages=0;window.onlineSocket=new WebSocket('${base.replace('http:', 'ws:')}/ws');onlineSocket.onmessage=()=>onlineMessages++;return true;})()`);
+  await until(()=>inView(ids[0],'onlineSocket.readyState===1'),'live game socket');
+  await page.evaluate(async()=>{for(const account of (await window.multiNest.getState()).state.accounts){await window.multiNest.accountEcoFPS(account.id,1);await window.multiNest.accountActivity(account.id,'eco');}});
+  await new Promise(resolve=>setTimeout(resolve,2200));
+  const online=await inView(ids[0],'({state:onlineSocket.readyState,messages:onlineMessages})');
+  assert.equal(online.state,1,'1 FPS power saving keeps the existing WebSocket connected');
+  assert.ok(online.messages>=10,'incoming game messages continue independently of rendering');
+  await inView(ids[0],'onlineSocket.close();true');
   for (const id of ids) assert.equal(await inView(id, 'window.sharedGameAsset'), 'ok');
   assert.equal(requests.filter(r => r.path === '/assets/shared.js?v=1').length, 2, 'native script cached independently for each account');
   for (let i = 0; i < ids.length; i++) {

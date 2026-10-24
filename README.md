@@ -43,13 +43,13 @@ Open **☰ → Language → English / Português (Brasil)**. The choice is saved
 | Mode | Behavior |
 | --- | --- |
 | Always active / maximum performance | Speedometer icon. Keeps the page loaded and adds no animation FPS cap. Uses more resources. |
-| Power saving | Waving flag icon. Stays loaded across accounts and workspaces and paces animation callbacks to 15 FPS by default. |
+| Power saving | Battery-and-lightning icon. Stays loaded across accounts and workspaces and paces animation callbacks to 15 FPS by default. |
 | Active when visible | Reduces background activity and unloads a hidden page after five minutes. Showing it reconnects the game. |
 | Suspended | Unloads immediately. Resume reopens the same saved profile. |
 
-Power saving is the button immediately after maximum performance. Right-click the account and choose **Activity → Power-saving FPS → 10 / 15 / 30 FPS**. The choice is saved per account and applies while visible too. Switching between maximum performance and power saving keeps the same page and session.
+Power saving is the button immediately after maximum performance. Right-click the account and choose **Activity → Power-saving FPS → 1 / 5 / 10 / 15 / 30 FPS**. The choice is saved per account and applies while visible too. Switching between maximum performance and power saving keeps the same page and session. The scheduler sleeps between animation budgets instead of polling every display refresh; maximum performance resumes immediately without that sleep.
 
-Power saving limits requestAnimationFrame callbacks in the page, embedded frames and account popups. It leaves browser clocks, timers, networking, CSS animations and worker loops unchanged, so it cannot guarantee a fixed CPU or power budget. Games that calculate progress per frame can behave differently at reduced FPS. Actual FPS can be lower than the target when covered, minimized or under load. The loaded page still uses RAM; Suspended releases it.
+Power saving limits requestAnimationFrame callbacks in the page, embedded frames and account popups. It leaves browser clocks, timers, networking, CSS animations and worker loops unchanged, so it cannot guarantee a fixed CPU or power budget. Games that calculate progress per frame can behave differently at reduced FPS. Actual FPS can be lower than the target when covered, minimized or under load. The loaded page still uses RAM for live game data, images and other resources; reducing FPS does not remove those assets or impose a safe fixed memory cap. Power saving never unloads an account. Suspended releases its renderer memory and disconnects the game.
 
 Unloading may disconnect a character. Offline progress depends on the game. Memory figures exclude shared app/GPU overhead. Compatibility depends on the website and its authentication requirements.
 
