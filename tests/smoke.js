@@ -40,7 +40,7 @@ class WebContentsMock extends EventEmitter {
   setZoomFactor(z) { this.zoom = z; }
   setBackgroundThrottling(value) { this.throttled = value; }
   setImageAnimationPolicy(value) { this.imagePolicy = value; }
-  enableDeviceEmulation(value) { this.emulation = value; }
+  enableDeviceEmulation(value) { assert.ok(this.loaded,'native emulation needs a navigated renderer'); this.emulation = value; }
   disableDeviceEmulation() { this.emulation = null; }
   setUserAgent(ua) { this.u = ua; }
   getUserAgent() { return this.u; }
@@ -195,5 +195,15 @@ const trustedEvent = () => ({ sender: mainWindow.webContents, senderFrame: mainW
   assert.equal(state.accounts[0].name, 'Minha EK');
   assert.equal(state.accounts[0].color, '#123abc');
   assert.equal(state.accounts[0].activity, 'suspended');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal((await invoke('account:resolution',ids[0],'720p')).ok,true);
+  assert.equal((await invoke('account:activity',ids[0],'always')).ok,true,'saved resolution must not emulate before its renderer exists');
+  const fixed = allViews.at(-1);
+  assert.equal(fixed.bounds.width,1280,'initial game viewport uses the preset before scripts run');
+  assert.equal(fixed.bounds.height,720);
+  assert.equal(fixed.webContents.emulation,undefined,'native emulation waits for main DOM readiness');
+  await new Promise(resolve => setImmediate(resolve));
+  fixed.webContents.emit('dom-ready');
+  assert.equal(fixed.webContents.emulation.viewSize.width,1280);
   console.log('PASS: accounts, persistence, isolation, trusted IPC, colors, names and activity lifecycle');
 })().catch(error => { console.error(error); process.exitCode = 1; });

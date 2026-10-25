@@ -225,15 +225,23 @@ function applyResolution(view, account, panel = view.getBounds()) {
   const contents = view.webContents, size = resolutions[account.resolution];
   const fitted = resolutionBounds(account.resolution, panel);
   if (fitted) {
+    // A new native view has no render widget yet. Initialize at the game's
+    // preset size below the UI, then fit it only after the document is ready.
+    if (!view.rendererReady) {
+      view.setBounds({x:panel.x,y:panel.y,...size});
+      contents.setZoomFactor(1);
+      return;
+    }
     const key = `${account.resolution}:${fitted.width}:${fitted.height}`;
     view.setBounds(fitted);
     if (view.resolutionKey !== key) {
       contents.setZoomFactor(1);
       contents.enableDeviceEmulation({screenPosition:'desktop', screenSize:size, viewPosition:{x:0,y:0}, deviceScaleFactor:1, viewSize:size, scale:fitted.width/size.width});
+      view.emulated = true;
     }
     view.resolutionKey = key;
   } else {
-    if (view.resolutionKey) contents.disableDeviceEmulation();
+    if (view.emulated && view.rendererReady) { contents.disableDeviceEmulation(); view.emulated = false; }
     view.resolutionKey = null;
     view.setBounds(panel);
     contents.setZoomFactor(account.zoom || 1);
@@ -279,6 +287,17 @@ function makeView(account) {
     }
   });
   view.activityMode = modeFor(account);
+  view.rendererReady = false;
+  view.webContents.on('dom-ready', () => {
+    if (view.webContents.isDestroyed() || views.get(account.id) !== view) return;
+    view.rendererReady = true;
+    view.resolutionKey = null;
+    applyResolution(view, accountById(account.id), view.panelBounds || view.getBounds());
+    refreshViews();
+  });
+  view.webContents.on('did-start-navigation', (_event, _url, inPlace, mainFrame) => {
+    if (mainFrame && !inPlace) view.rendererReady = false;
+  });
   view.throttled = !backgroundMode(modeFor(account));
   configureGameFrames(view.webContents, account.id);
   views.set(account.id, view);
@@ -345,6 +364,7 @@ function makeView(account) {
     if (isMainFrame && code !== -3) setStatus(account.id, { loading: false, error: description });
   });
   view.webContents.on('render-process-gone', (_event, details) => {
+    view.rendererReady = false; view.emulated = false; view.resolutionKey = null;
     finishInitialLoad(account.id, view);
     setStatus(account.id, { error: T('Processo encerrado: ') + details.reason });
   });
@@ -455,8 +475,8 @@ function refreshViews() {
         continue;
       }
       view.activityMode = mode;
-      view.onScreen = onScreen && !overlayOpen;
-      if (onScreen && !overlayOpen) {
+      view.onScreen = onScreen && !overlayOpen && (view.rendererReady || !resolutions[account.resolution]);
+      if (view.onScreen) {
         applyResolution(view, account, boundsForAccounts.get(account.id));
         view.setVisible(true);
         placeView(view, 'above');
