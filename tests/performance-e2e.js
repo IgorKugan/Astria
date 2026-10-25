@@ -46,7 +46,10 @@ async function samples(){return application.evaluate(async({webContents})=>Promi
   await page.emulateMedia({reducedMotion:'reduce'});assert.equal(await page.locator('.brand-mark').evaluate(el=>getComputedStyle(el).animationName),'none');
   await nativeWindow.evaluate(w=>w.setSize(780,500));await delay(200);assert.equal(await page.locator('.panel-head').evaluate(el=>el.scrollWidth<=el.clientWidth),true,'compact toolbar fits');
   await page.evaluate(()=>window.multiNest.language('pt-BR'));await page.click('[data-action="performance"]');assert.equal(await page.locator('#modal-title').textContent(),'Desempenho');await page.keyboard.press('Escape');
-  await page.evaluate(()=>window.multiNest.accountResolution('a2','720p'));await page.evaluate(()=>window.multiNest.visualRest(true));await application.close();
+  await page.evaluate(()=>window.multiNest.accountResolution('a2','720p'));await page.evaluate(()=>window.multiNest.visualRest(true));
+  const previousProcess=application.process();await application.close();
+  for(let i=0;i<200&&previousProcess.exitCode===null&&previousProcess.signalCode===null;i++)await delay(50);
+  assert.ok(previousProcess.exitCode!==null||previousProcess.signalCode!==null,'previous process releases the profile before restart');
   application=await electron.launch({executablePath:process.env.MULTINEST_TEST_EXE||require('electron'),args:process.env.MULTINEST_TEST_EXE?['--user-data-dir='+profile]:[root],env});
   page=await application.firstWindow();await page.waitForSelector('.panel');
   const restored=(await page.evaluate(()=>window.multiNest.getState())).state;assert.equal(restored.preferences.visualRest,true);assert.equal(restored.accounts.find(a=>a.id==='a2').resolution,'720p');assert.equal(restored.accounts.find(a=>a.id==='a2').activity,'adaptive');assert.ok(!restored.ultraAccountId,'fullscreen is not persisted');
