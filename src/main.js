@@ -295,9 +295,8 @@ function makeView(account) {
     applyResolution(view, accountById(account.id), view.panelBounds || view.getBounds());
     refreshViews();
   });
-  view.webContents.on('did-start-navigation', (_event, _url, inPlace, mainFrame) => {
-    if (mainFrame && !inPlace) view.rendererReady = false;
-  });
+  // Provisional/download navigations can abort and retain the existing document.
+  view.webContents.on('did-navigate', () => { view.rendererReady = false; });
   view.throttled = !backgroundMode(modeFor(account));
   configureGameFrames(view.webContents, account.id);
   views.set(account.id, view);

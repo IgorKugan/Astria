@@ -205,5 +205,8 @@ const trustedEvent = () => ({ sender: mainWindow.webContents, senderFrame: mainW
   await new Promise(resolve => setImmediate(resolve));
   fixed.webContents.emit('dom-ready');
   assert.equal(fixed.webContents.emulation.viewSize.width,1280);
+  fixed.webContents.emit('did-start-navigation',{},'https://example.com/download',false,true);
+  fixed.webContents.emit('did-fail-provisional-load',{},-3,'ERR_ABORTED','https://example.com/download',true);
+  assert.equal(fixed.rendererReady,true,'canceled navigation retains the ready document');
   console.log('PASS: accounts, persistence, isolation, trusted IPC, colors, names and activity lifecycle');
 })().catch(error => { console.error(error); process.exitCode = 1; });
