@@ -54,7 +54,7 @@ const setLimit = contextBridge.executeInMainWorld({
       if (!pending.size) stopTimer();
     };
     return value => {
-      if ([0, 1, 5, 10, 15, 30].includes(value)) { fps = value; last = -Infinity; stopTimer(); flush(); }
+      if ([0, 1, 2, 5, 10, 15, 30, 60].includes(value) && value !== fps) { fps = value; last = -Infinity; stopTimer(); flush(); }
     };
   }
 });

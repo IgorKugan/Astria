@@ -7,6 +7,26 @@
   else root.AstriaI18n = api;
 })(typeof window === 'object' ? window : globalThis, () => {
   const strings = {
+    "Eco adaptativo":"Adaptive Eco",
+    "Descanso visual":"Visual rest",
+    "Modo Ultra":"Ultra mode",
+    "Resolução fixa":"Fixed resolution",
+    "Automática":"Automatic",
+    "Resolução inválida.":"Invalid resolution.",
+    "Opção inválida.":"Invalid option.",
+    "Contas ocultas: até 2 FPS e áudio silenciado, sem desconectar.":"Hidden accounts: up to 2 FPS and muted audio, without disconnecting.",
+    "Pausa novas imagens animadas. Imagens já carregadas podem continuar até o próximo carregamento. Timers, rede e workers continuam sob controle do jogo.":"Stops newly loaded animated images. Existing images may keep animating until reloaded. Timers, networking and workers remain under the game’s control.",
+    "Eco adaptativo: até 60 FPS na conta em uso. As secundárias usam o limite de economia, até 10 FPS com 4 contas carregadas e 5 FPS com 8.":"Adaptive Eco: up to 60 FPS in the active account. Secondary accounts use the power-saving limit, up to 10 FPS with 4 loaded accounts and 5 FPS with 8.",
+    "A resolução virtual se ajusta ao painel. O ganho depende de como o jogo desenha a imagem.":"The virtual resolution fits the panel. Savings depend on how the game renders its image.",
+    "Limpar memória sem uso":"Clean unused memory",
+    "Solicita a coleta de objetos JavaScript sem uso. Preserva dados, sessões e recursos ainda usados pelo jogo.":"Requests collection of unused JavaScript objects. Preserves data, sessions and resources the game still uses.",
+    "Coleta solicitada. Recursos ainda usados pelo jogo permanecem na memória.":"Collection requested. Resources still used by the game remain in memory.",
+    "Aguarde dois minutos entre limpezas da mesma página.":"Wait two minutes between cleanups of the same page.",
+    "Feche as ferramentas de desenvolvimento antes de limpar.":"Close developer tools before cleaning memory.",
+    "Já existe uma limpeza em andamento.":"Memory cleanup is already running.",
+    "A página foi fechada.":"The page was closed.",
+    "Modo Ultra: tela cheia para uma conta; as demais ficam em até 1 FPS. Saia pelo mesmo botão. Modos de economia mantêm a página carregada. Ativa quando visível descarrega após cinco minutos oculta; Suspender descarrega imediatamente.":"Ultra mode: fullscreen for one account; the others run at up to 1 FPS. Exit using the same button. Power-saving modes keep pages loaded. Active when visible unloads after five minutes hidden; Suspend unloads immediately.",
+
     'Sempre ativa · desempenho máximo':'Always active · maximum performance',
     'Economia de energia':'Power saving','FPS em economia':'Power-saving FPS','FPS inválido.':'Invalid FPS.',
     'Mantém a conta carregada e reduz os quadros de animação. O padrão é 15 FPS; escolha 1, 5, 10, 15 ou 30 FPS no menu da conta em Atividade. Timers, rede, animações CSS e workers continuam sob controle do jogo.':'Keeps the account loaded and reduces animation frames. The default is 15 FPS; choose 1, 5, 10, 15 or 30 FPS under Activity in the account menu. Timers, networking, CSS animations and workers remain controlled by the game.',

@@ -8,6 +8,8 @@ const { isInterfaceURL } = require('./trusted-ui');
 const { pageMetrics } = require('./metrics');
 const { planViewLoads } = require('./view-loads');
 const { closePage } = require('./view-close');
+const { frameBudget, resolutions, resolutionBounds } = require('./performance');
+const { collectPageMemory } = require('./memory-cleanup');
 const { configureStorage, writeAccountGuide } = require('./storage');
 const { Updates } = require('./updates');
 const releaseConfig = require('./release-config.json');
@@ -53,10 +55,10 @@ const viewStatuses = new Map();
 const boundsForAccounts = new Map();
 const idleTimers = new Map();
 const actions = new Map();
-const activityModes = new Set(['always', 'eco', 'visible', 'suspended']);
+const activityModes = new Set(['always', 'eco', 'adaptive', 'visible', 'suspended']);
 const ecoRates = [1, 5, 10, 15, 30];
 const ecoFPS = account => ecoRates.includes(account.ecoFPS) ? account.ecoFPS : 15;
-const backgroundMode = mode => mode === 'always' || mode === 'eco';
+const backgroundMode = mode => mode === 'always' || mode === 'eco' || mode === 'adaptive';
 const colors = { mint: '#46bfa8', blue: '#559ce8', violet: '#a78bed', amber: '#d7a744', rose: '#d981b0', red: '#e97778', slate: '#91a2b8' };
 const normalizeColor = color => typeof color === 'string' && /^#[a-f\d]{6}$/i.test(color) ? color.toLowerCase() : typeof color === 'string' && Object.hasOwn(colors, color) ? colors[color] : null;
 const sidebarWidth = value => Math.max(44, Math.min(320, Math.round(value)));
@@ -130,7 +132,7 @@ function normalizeImport(json) {
     try {
       const id = hasId(a.id) && !used.has(a.id) ? a.id : randomUUID();
       used.add(id);
-      accounts.push({ id, workspaceId: a.workspaceId, name: safeString(a.name, 55) || T('Conta'), url: safeURL(a.url), muted: !!a.muted, zoom: Math.max(0.5, Math.min(2, Number(a.zoom) || 1)), color: normalizeColor(a.color) || colors.mint, activity: modeFor(a), ecoFPS: ecoFPS(a) });
+      accounts.push({ id, workspaceId: a.workspaceId, name: safeString(a.name, 55) || T('Conta'), url: safeURL(a.url), muted: !!a.muted, zoom: Math.max(0.5, Math.min(2, Number(a.zoom) || 1)), color: normalizeColor(a.color) || colors.mint, activity: modeFor(a), ecoFPS: ecoFPS(a), resolution: Object.hasOwn(resolutions, a.resolution) ? a.resolution : 'auto' });
     } catch { /* skip malformed or unsupported entry */ }
   }
   return {
@@ -138,7 +140,7 @@ function normalizeImport(json) {
     activeWorkspaceId: wIds.has(json.activeWorkspaceId) ? json.activeWorkspaceId : workspaces[0].id,
     selectedAccountId: accounts.some(a => a.id === json.selectedAccountId) ? json.selectedAccountId : null,
     workspaces, accounts,
-    preferences: { theme: json.preferences?.theme === 'light' ? 'light' : 'dark', sidebarWidth: Number.isFinite(json.preferences?.sidebarWidth) ? sidebarWidth(json.preferences.sidebarWidth) : json.preferences?.sidebarCollapsed ? 44 : 152, language: json.preferences?.language === 'en' ? 'en' : 'pt-BR' }
+    preferences: { theme: json.preferences?.theme === 'light' ? 'light' : 'dark', sidebarWidth: Number.isFinite(json.preferences?.sidebarWidth) ? sidebarWidth(json.preferences.sidebarWidth) : json.preferences?.sidebarCollapsed ? 44 : 152, language: json.preferences?.language === 'en' ? 'en' : 'pt-BR', visualRest: json.preferences?.visualRest === true }
   };
 }
 
@@ -158,7 +160,8 @@ function loadState() {
 function persistState() {
   const temp = configPath + '.tmp';
   fs.mkdirSync(path.dirname(configPath), { recursive: true });
-  fs.writeFileSync(temp, JSON.stringify(state, null, 2), { mode: 0o600 });
+  const { ultraAccountId, ...saved } = state;
+  fs.writeFileSync(temp, JSON.stringify(saved, null, 2), { mode: 0o600 });
   fs.renameSync(temp, configPath);
   writeAccountGuide(storage, state);
 }
@@ -168,6 +171,10 @@ function currentAccounts() {
 }
 
 function publish() {
+  if (state.ultraAccountId && (state.ultraAccountId !== state.selectedAccountId || !currentAccounts().some(a => a.id === state.ultraAccountId && modeFor(a) !== 'suspended'))) {
+    state.ultraAccountId = null;
+    windowMain?.setFullScreen(false);
+  }
   persistState();
   if (windowMain && !windowMain.isDestroyed()) windowMain.webContents.send('state:updated', state);
   refreshViews();
@@ -190,13 +197,46 @@ function finishInitialLoad(id, view) {
   if (!quitting && windowMain && !windowMain.isDestroyed()) setImmediate(refreshViews);
 }
 
+function performanceFor(account) {
+  const visible = windowMain?.isVisible() && !windowMain.isMinimized() && !overlayOpen && boundsForAccounts.has(account.id);
+  const rest = !visible && state.preferences.visualRest;
+  const ultraBackground = !!state.ultraAccountId && account.id !== state.ultraAccountId;
+  return { fps: frameBudget(account, {active: visible && account.id === state.selectedAccountId, loaded: views.size, rest, ultraBackground}), resting: !!(rest || ultraBackground) };
+}
+
 function setFrameLimit(contents, account, force = false) {
   if (contents.isDestroyed()) return;
-  const fps = modeFor(account) === 'eco' ? ecoFPS(account) : 0;
+  const { fps, resting } = performanceFor(account);
+  contents.setAudioMuted(!!account.muted || resting);
+  if (contents.astriaResting !== resting) {
+    // shortcut: Chromium applies this to newly decoded images; do not reset game-owned image sources.
+    contents.setImageAnimationPolicy(resting ? 'noAnimation' : 'animate');
+    contents.astriaResting = resting;
+  }
   if (!force && contents.astriaFPS === fps) return;
   contents.astriaFPS = fps;
   for (const frame of contents.mainFrame.framesInSubtree) {
     if (!frame.isDestroyed()) frame.send('astria:frame-limit', fps);
+  }
+}
+
+function applyResolution(view, account, panel = view.getBounds()) {
+  view.panelBounds = panel;
+  const contents = view.webContents, size = resolutions[account.resolution];
+  const fitted = resolutionBounds(account.resolution, panel);
+  if (fitted) {
+    const key = `${account.resolution}:${fitted.width}:${fitted.height}`;
+    view.setBounds(fitted);
+    if (view.resolutionKey !== key) {
+      contents.setZoomFactor(1);
+      contents.enableDeviceEmulation({screenPosition:'desktop', screenSize:size, viewPosition:{x:0,y:0}, deviceScaleFactor:1, viewSize:size, scale:fitted.width/size.width});
+    }
+    view.resolutionKey = key;
+  } else {
+    if (view.resolutionKey) contents.disableDeviceEmulation();
+    view.resolutionKey = null;
+    view.setBounds(panel);
+    contents.setZoomFactor(account.zoom || 1);
   }
 }
 
@@ -230,7 +270,7 @@ function makeView(account) {
       backgroundThrottling: !backgroundMode(modeFor(account)),
       preload: path.join(__dirname, 'game-preload.js'),
       nodeIntegrationInSubFrames: true,
-      additionalArguments: ['--astria-fps=' + (modeFor(account) === 'eco' ? ecoFPS(account) : 0)],
+      additionalArguments: ['--astria-fps=' + performanceFor(account).fps],
       javascript: true,
       // Games rarely need spellcheck; it costs a dictionary and work per keystroke.
       spellcheck: false,
@@ -252,13 +292,19 @@ function makeView(account) {
   const width = windowWidth || interfaceBounds.width, height = windowHeight || interfaceBounds.height;
   const initialBounds = boundsForAccounts.get(account.id) || boundsForAccounts.get(state.selectedAccountId) || boundsForAccounts.values().next().value;
   view.setBounds(initialBounds || { x: 0, y: 36, width, height: Math.max(75, height - 36) });
-  view.webContents.setAudioMuted(!!account.muted);
-  view.webContents.setZoomFactor(Number(account.zoom) || 1);
+  applyResolution(view, account);
+  setFrameLimit(view.webContents, account);
 
   // Use the regular Chromium UA where Electron's brand could cause false incompatibility.
   const ua = view.webContents.getUserAgent().replace(/\sElectron\/\S+/g, '');
   view.webContents.setUserAgent(ua);
   view.webContents.on('context-menu', (_event, params) => showAccountMenu(account.id, null, params));
+  view.webContents.on('focus', () => {
+    if (!overlayOpen && view.onScreen && state.selectedAccountId !== account.id) {
+      state.selectedAccountId = account.id;
+      publish();
+    }
+  });
   const allowWebNavigation = (event, url) => {
     try { safeURL(url); if (!/^https?:\/\//i.test(url)) event.preventDefault(); }
     catch { event.preventDefault(); }
@@ -277,14 +323,14 @@ function makeView(account) {
         width: 960, height: 760,
         webPreferences: { partition, nodeIntegration: false, contextIsolation: true, sandbox: true, spellcheck: false,
           preload: path.join(__dirname, 'game-preload.js'), nodeIntegrationInSubFrames: true,
-          additionalArguments: ['--astria-fps=' + (modeFor(account) === 'eco' ? ecoFPS(account) : 0)] }
+          additionalArguments: ['--astria-fps=' + performanceFor(account).fps] }
       } };
     } catch { return { action: 'deny' }; }
   });
   view.webContents.on('did-create-window', child => {
     view.popups.add(child);
     configureGameFrames(child.webContents, account.id);
-    child.webContents.setAudioMuted(!!accountById(account.id).muted);
+    setFrameLimit(child.webContents, accountById(account.id));
     child.on('closed', () => view.popups.delete(child));
     child.webContents.on('will-navigate', allowWebNavigation);
     child.webContents.on('will-redirect', allowWebNavigation);
@@ -370,7 +416,7 @@ function placeView(view, layer) {
 function refreshViews() {
   if (quitting || !windowMain || windowMain.isDestroyed()) return;
   const windowVisible = windowMain.isVisible() && !windowMain.isMinimized();
-  const visible = new Set(windowVisible ? currentAccounts().filter(a => boundsForAccounts.has(a.id)).map(a => a.id) : []);
+  const visible = new Set(windowVisible ? currentAccounts().filter(a => boundsForAccounts.has(a.id) && (!state.ultraAccountId || state.ultraAccountId === a.id)).map(a => a.id) : []);
   // Release slots belonging to accounts that were suspended before this pass.
   for (const account of state.accounts) if (modeFor(account) === 'suspended') destroyView(account.id, true);
   const starts = planViewLoads(state.accounts, {
@@ -386,7 +432,7 @@ function refreshViews() {
   for (const account of state.accounts) {
     const view = views.get(account.id);
     if (!view) continue;
-    const throttled = !backgroundMode(modeFor(account)) || !windowVisible;
+    const throttled = !(backgroundMode(modeFor(account)) || state.preferences.visualRest || state.ultraAccountId) || !windowVisible;
     if (view.throttled !== throttled) {
       view.webContents.setBackgroundThrottling(throttled);
       view.throttled = throttled;
@@ -401,7 +447,7 @@ function refreshViews() {
       setStatus(account.id, { queued: false, sleeping: true, loading: false, error: '' });
       continue;
     }
-    if (backgroundMode(mode) || onScreen) {
+    if (backgroundMode(mode) || onScreen || ((state.preferences.visualRest || state.ultraAccountId) && views.has(account.id))) {
       clearTimeout(idleTimers.get(account.id)); idleTimers.delete(account.id);
       const view = views.get(account.id);
       if (!view) {
@@ -411,7 +457,7 @@ function refreshViews() {
       view.activityMode = mode;
       view.onScreen = onScreen && !overlayOpen;
       if (onScreen && !overlayOpen) {
-        view.setBounds(boundsForAccounts.get(account.id));
+        applyResolution(view, account, boundsForAccounts.get(account.id));
         view.setVisible(true);
         placeView(view, 'above');
       } else {
@@ -530,6 +576,7 @@ function showAccountMenu(id, point, params) {
     { label: T('Atividade'), submenu: [
       { label: T('Sempre ativa · desempenho máximo'), type: 'radio', checked: modeFor(a) === 'always', click: () => runAction('account:activity', id, 'always') },
       { label: T('Economia de energia'), type: 'radio', checked: modeFor(a) === 'eco', click: () => runAction('account:activity', id, 'eco') },
+      { label: T('Eco adaptativo'), type: 'radio', checked: modeFor(a) === 'adaptive', click: () => runAction('account:activity', id, 'adaptive') },
       { label: T('FPS em economia'), submenu: ecoRates.map(fps => ({label: fps + ' FPS', type: 'radio', checked: ecoFPS(a) === fps, click: () => runAction('account:eco-fps', id, fps)})) },
       { label: T('Ativa quando visível'), type: 'radio', checked: modeFor(a) === 'visible', click: () => runAction('account:activity', id, 'visible') },
       { label: T('Suspender agora · liberar RAM'), type: 'radio', checked: modeFor(a) === 'suspended', click: () => runAction('account:activity', id, 'suspended') },
@@ -542,6 +589,9 @@ function showAccountMenu(id, point, params) {
     { label: T('Atualizar sem cache'), enabled: !!v, click: () => runAction('view:reload', id, true) },
     { label: T('Endereço inicial'), click: () => runAction('view:home', id) },
     { label: a.muted ? T('Ativar áudio') : T('Silenciar'), click: () => runAction('view:mute', id) },
+    { label: T('Resolução fixa'), submenu: ['auto', ...Object.keys(resolutions)].map(preset => ({label: preset === 'auto' ? T('Automática') : `${preset} · ${resolutions[preset].width} × ${resolutions[preset].height}`, type:'radio', checked: (a.resolution || 'auto') === preset, click: () => runAction('account:resolution', id, preset)})) },
+    { label: T('Modo Ultra'), type:'checkbox', checked: state.ultraAccountId === id, click: () => runAction('view:ultra', id) },
+    { label: T('Limpar memória sem uso'), enabled:!!v, click: () => uiCommand('performance-help', id) },
     { label: `Zoom · ${Math.round(a.zoom * 100)}%`, submenu: [
       { label: T('Aumentar'), click: () => runAction('view:zoom', id, 0.1) },
       { label: T('Diminuir'), click: () => runAction('view:zoom', id, -0.1) },
@@ -700,6 +750,33 @@ function registerIPC() {
     accountById(id).ecoFPS = fps;
     publish(); return { ok: true };
   });
+  listen('account:resolution', (id, preset) => {
+    if (preset !== 'auto' && !Object.hasOwn(resolutions, preset)) throw new Error(T('Resolução inválida.'));
+    const a = accountById(id); a.resolution = preset;
+    const view = views.get(id);
+    if (view) applyResolution(view, a, boundsForAccounts.get(id) || view.panelBounds || view.getBounds());
+    publish(); return { ok:true };
+  });
+  listen('settings:visual-rest', enabled => {
+    if (typeof enabled !== 'boolean') throw new Error(T('Opção inválida.'));
+    state.preferences.visualRest = enabled;
+    publish(); return {ok:true};
+  });
+  listen('view:ultra', id => {
+    const a = accountById(id);
+    const enabled = state.ultraAccountId !== id;
+    if (enabled && modeFor(a) === 'suspended') throw new Error(T('Retome a conta suspensa primeiro.'));
+    state.ultraAccountId = enabled ? id : null;
+    if (enabled) {state.activeWorkspaceId = a.workspaceId; state.selectedAccountId = id;}
+    windowMain.setFullScreen(enabled);
+    requestAccountFocus(); boundsForAccounts.clear(); publish(); return {ok:true};
+  });
+  listen('view:cleanup', async id => {
+    accountById(id);
+    const view = views.get(id);
+    if (!view) throw new Error(T('Retome a conta suspensa primeiro.'));
+    return {ok:true, result:await collectPageMemory(view.webContents)};
+  });
   listen('view:reload', (id, ignoreCache = false) => {
     const a = accountById(id); const existed = views.has(id); const v = makeView(a);
     if (!v) throw new Error(T('Retome a conta suspensa primeiro.'));
@@ -728,7 +805,7 @@ function registerIPC() {
   listen('view:zoom', (id, delta) => {
     if (!Number.isFinite(delta)) throw new Error(T('Zoom inválido.'));
     const a = accountById(id); a.zoom = Math.round(Math.max(0.5, Math.min(2, (a.zoom || 1) + Number(delta))) * 10) / 10;
-    const view = views.get(id); if (view) view.webContents.setZoomFactor(a.zoom);
+    const view = views.get(id); if (view && !resolutions[a.resolution]) view.webContents.setZoomFactor(a.zoom);
     publish(); return { ok: true };
   });
   listen('settings:theme', (theme) => {

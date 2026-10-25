@@ -22,3 +22,5 @@ assert.deepEqual(plan({existing:new Set(['background-1','background-2']),loading
 assert.deepEqual(plan({visible:new Set(),existing:new Set(['selected','background-1','background-2'])}),[],'hidden visible-only accounts are not preloaded');
 assert.deepEqual(planViewLoads([{id:'low',activity:'eco'}],{...base,visible:new Set()}).map(a=>a.id),['low'],'power-saving accounts start while hidden');
 console.log('PASS: foreground priority, bounded loading, slow-site selection and activity policies');
+
+assert.deepEqual(planViewLoads([{id:'auto-low',activity:'adaptive'}],{...base,visible:new Set()}).map(a=>a.id),['auto-low'],'adaptive accounts stay loaded in background');

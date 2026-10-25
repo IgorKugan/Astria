@@ -39,6 +39,9 @@ class WebContentsMock extends EventEmitter {
   setAudioMuted(flag) { this.muted = flag; }
   setZoomFactor(z) { this.zoom = z; }
   setBackgroundThrottling(value) { this.throttled = value; }
+  setImageAnimationPolicy(value) { this.imagePolicy = value; }
+  enableDeviceEmulation(value) { this.emulation = value; }
+  disableDeviceEmulation() { this.emulation = null; }
   setUserAgent(ua) { this.u = ua; }
   getUserAgent() { return this.u; }
   setWindowOpenHandler(handler) { this.popupHandler = handler; }

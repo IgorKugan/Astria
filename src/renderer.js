@@ -10,8 +10,8 @@ const currentWorkspace = () => state.workspaces.find(w => w.id === state.activeW
 const currentAccounts = () => state.accounts.filter(a => a.workspaceId === state.activeWorkspaceId);
 const account = id => state.accounts.find(a => a.id === id);
 const host = url => { try { return new URL(url).hostname; } catch { return url; } };
-const activityLabel = a => ({always:tr('Sempre ativa · desempenho máximo'),eco:tr('Economia de energia'),visible:tr('Ativa quando visível'),suspended:tr('Suspensa · RAM liberada')}[a.activity] || tr('Ativa quando visível'));
-const modeIcon = a => a.activity === 'always' ? glyph('always') : a.activity === 'eco' ? glyph('eco') : a.activity === 'suspended' ? glyph('pause') : '';
+const activityLabel = a => ({always:tr('Sempre ativa · desempenho máximo'),eco:tr('Economia de energia'),adaptive:tr('Eco adaptativo'),visible:tr('Ativa quando visível'),suspended:tr('Suspensa · RAM liberada')}[a.activity] || tr('Ativa quando visível'));
+const modeIcon = a => a.activity === 'always' ? glyph('always') : ['eco','adaptive'].includes(a.activity) ? glyph('eco') : a.activity === 'suspended' ? glyph('pause') : '';
 const glyph = name => {
   const paths = {
     grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
@@ -20,6 +20,8 @@ const glyph = name => {
     focus: '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 8h8v8H8z"/>',
     always: '<path d="M4 19a9 9 0 1 1 16 0M5 13H3m4-6 1.5 1.5M12 4v2m6-1-5 7"/><circle cx="12" cy="13" r="2"/>',
     eco: '<rect x="2" y="6" width="18" height="12" rx="2"/><path d="M22 10v4M12 8l-3 5h5l-3 3"/>',
+    ultra: '<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>',
+    tune: '<path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/>',
     visible: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>',
     pause: '<path d="M9 5v14m6-14v14"/>',
     reload: '<path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 7a7 7 0 0 1 12-1l2 3M4 15l2 3a7 7 0 0 0 12-1"/>',
@@ -76,6 +78,7 @@ function render() {
   document.querySelectorAll('[data-i18n-label]').forEach(node => { node.setAttribute('aria-label',tr(node.dataset.i18nLabel)); });
   document.querySelectorAll('[data-i18n-title]').forEach(node => { node.title=tr(node.dataset.i18nTitle); });
   const workspace = currentWorkspace(), accounts = currentAccounts();
+  document.documentElement.classList.toggle('ultra',!!state.ultraAccountId);
   document.documentElement.classList.toggle('light', state.preferences.theme === 'light');
   applySidebar(sidebarDrag?.width ?? state.preferences.sidebarWidth ?? 152);
   el('empty-theme').classList.toggle('hidden',accounts.length>0);
@@ -91,12 +94,12 @@ function render() {
     grid.innerHTML=h`<div class="empty"><img class="empty-mark" src="astria-mark.svg" alt="" aria-hidden="true"><h2>Seu próximo espaço.</h2><p>Adicione um jogo. Cada conta tem seu próprio login e pode ter uma cor e um modo de atividade.</p><button class="primary" data-action="add-account">Criar conta</button></div>`;
     scheduleLayout(); return;
   }
-  const shown=workspace.layout==='focus'?[accounts.find(a=>a.id===state.selectedAccountId)||accounts[0]]:accounts;
+  const shown=state.ultraAccountId?[account(state.ultraAccountId)]:workspace.layout==='focus'?[accounts.find(a=>a.id===state.selectedAccountId)||accounts[0]]:accounts;
   grid.style.setProperty('--n',shown.length);
   grid.innerHTML=shown.map(a=>{
     const status=statuses[a.id]||{}, paused=a.activity==='suspended';
     return h`<article class="panel ${a.id===state.selectedAccountId?'selected':''}" data-panel="${esc(a.id)}" data-account="${esc(a.id)}">
-      <header class="panel-head"><button class="color-button" data-action="color" data-id="${esc(a.id)}" title="Escolher cor" aria-label="Cor de ${esc(a.name)}"><span class="color-dot"></span></button><button class="panel-title" data-action="select" data-id="${esc(a.id)}" title="${esc(a.name)} · ${esc(host(a.url))}">${esc(a.name)}</button><span class="panel-state ${status.error?'error':status.loading?'loading':''}" title="${esc(status.error||panelStatus(a.id))}">${status.error?'!':status.loading?'◌':''}</span><span class="panel-cost" data-cost="${esc(a.id)}"><span class="metric-ram"></span><span class="metric-cpu"></span></span>${audioToggle(a)}<div class="activity-controls" role="group" aria-label="Atividade de ${esc(a.name)}">${Object.entries({always:[glyph('always'),tr('Sempre ativa · desempenho máximo')],eco:[glyph('eco'),tr('Economia de energia')+' · '+(a.ecoFPS||15)+' FPS'],visible:[glyph('visible'),tr('Ativa quando visível · descarrega após 5 minutos oculta')],suspended:[glyph('pause'),tr('Suspender · liberar RAM')]}).map(([mode,[icon,label]])=>`<button data-action="activity" data-mode="${mode}" data-id="${esc(a.id)}" aria-label="${label}" title="${label}" aria-pressed="${a.activity===mode}">${icon}</button>`).join('')}</div><button class="icon-button layout-button" data-action="layout-menu" title="Layout dos painéis" aria-label="Layout dos painéis" aria-haspopup="menu">${layoutIcons[workspace.layout]}</button>${themeToggle()}<button class="icon-button reload-button" data-action="reload" data-id="${esc(a.id)}" title="Atualizar" aria-label="Atualizar ${esc(a.name)}">${glyph('reload')}</button><button class="icon-button" data-action="account-menu" data-id="${esc(a.id)}" title="Opções da conta" aria-label="Opções de ${esc(a.name)}" aria-haspopup="menu">${glyph('menu')}</button></header>
+      <header class="panel-head"><button class="color-button" data-action="color" data-id="${esc(a.id)}" title="Escolher cor" aria-label="Cor de ${esc(a.name)}"><span class="color-dot"></span></button><button class="panel-title" data-action="select" data-id="${esc(a.id)}" title="${esc(a.name)} · ${esc(host(a.url))}">${esc(a.name)}</button><span class="panel-state ${status.error?'error':status.loading?'loading':''}" title="${esc(status.error||panelStatus(a.id))}">${status.error?'!':status.loading?'◌':''}</span><span class="panel-cost" data-cost="${esc(a.id)}"><span class="metric-ram"></span><span class="metric-cpu"></span></span>${audioToggle(a)}<button class="icon-button performance-button" data-action="performance" data-id="${esc(a.id)}" title="Desempenho" aria-label="Desempenho">${glyph('tune')}</button><div class="activity-controls" role="group" aria-label="Atividade de ${esc(a.name)}">${Object.entries({always:[glyph('always'),tr('Sempre ativa · desempenho máximo')],eco:[glyph('eco'),a.activity==='eco'?tr('Economia de energia')+' · '+(a.ecoFPS||15)+' FPS':tr('Eco adaptativo')],visible:[glyph('visible'),tr('Ativa quando visível · descarrega após 5 minutos oculta')],suspended:[glyph('pause'),tr('Suspender · liberar RAM')]}).map(([mode,[icon,label]])=>`<button data-action="activity" data-mode="${mode==='eco'&&a.activity!=='eco'?'adaptive':mode}" data-id="${esc(a.id)}" aria-label="${label}" title="${label}" aria-pressed="${a.activity===mode||mode==='eco'&&a.activity==='adaptive'}">${icon}</button>`).join('')}</div><button class="icon-button ultra-button" data-action="ultra" data-id="${esc(a.id)}" title="Modo Ultra" aria-label="Modo Ultra" aria-pressed="${state.ultraAccountId===a.id}">${glyph('ultra')}</button><button class="icon-button layout-button" data-action="layout-menu" title="Layout dos painéis" aria-label="Layout dos painéis" aria-haspopup="menu">${layoutIcons[workspace.layout]}</button>${themeToggle()}<button class="icon-button reload-button" data-action="reload" data-id="${esc(a.id)}" title="Atualizar" aria-label="Atualizar ${esc(a.name)}">${glyph('reload')}</button><button class="icon-button" data-action="account-menu" data-id="${esc(a.id)}" title="Opções da conta" aria-label="Opções de ${esc(a.name)}" aria-haspopup="menu">${glyph('menu')}</button></header>
       <div class="panel-body" ${paused?'':`data-slot="${esc(a.id)}"`}>${paused?h`<div class="panel-placeholder"><span class="sleep-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M9 8v8m6-8v8"/></svg></span><strong>${esc(a.name)} está suspensa</strong><p>A página foi descarregada para liberar RAM. Retomar abre o jogo com o perfil salvo.</p><button class="secondary" data-action="resume" data-id="${esc(a.id)}">Retomar conta</button></div>`:h`<div class="panel-placeholder">Abrindo ${esc(a.name)}…</div>`}</div>
     </article>`;
   }).join('');
@@ -182,17 +185,31 @@ function confirmDelete(item,workspace=false) {
 function confirmImport() {
   modal(h`<h2 id="modal-title">Importar configuração</h2><p class="sub">Substitui a lista atual de espaços e contas. O arquivo não inclui cookies nem senhas.</p><div class="modal-actions"><button class="secondary" data-close>Cancelar</button><button class="primary" id="confirm-import">Escolher arquivo</button></div>`,()=>{el('confirm-import').onclick=async()=>{const r=await call(api.import);if(r.ok){closeModal();if(!r.canceled)toast(tr('Configuração importada.'));}};});
 }
-function performanceHelp() {
-  modal(h`<h2 id="modal-title">Atividade das contas</h2>
-    <p class="sub"><strong>Sempre ativa</strong><br>Mantém a página carregada e os timers ativos ao trocar de conta ou espaço. Usa mais recursos.</p>
-    <p class="sub"><strong>Economia de energia</strong><br>Mantém a conta carregada e reduz os quadros de animação. O padrão é 15 FPS; escolha 1, 5, 10, 15 ou 30 FPS no menu da conta em Atividade. Timers, rede, animações CSS e workers continuam sob controle do jogo.</p>
-    <p class="small-note">Economia de energia reduz o trabalho de animação, mas os dados e as imagens usados pelo jogo continuam na RAM. O consumo mínimo depende do jogo; não há um limite fixo de memória enquanto ele continua conectado.</p>
-    <p class="sub"><strong>Ativa quando visível</strong><br>Reduz a atividade quando oculta. Após cinco minutos, descarrega a página para liberar RAM. Ao voltar, o jogo reconecta.</p>
-    <p class="sub"><strong>Suspensa</strong><br>Descarrega imediatamente. Use Retomar conta para abrir novamente com o perfil salvo.</p>
-    <p class="small-note">O cache dos jogos é separado por conta e fica dentro de Save. Várias contas ativas dividem os recursos da CPU e da GPU.</p>
-    <p class="small-note">Sempre ativa mantém a página carregada e os temporizadores ativos. Animações em segundo plano podem ter FPS reduzido. Ao minimizar, o jogo recebe o estado normal de página oculta do navegador.</p>
-    <p class="small-note">Descarregar pode interromper a atividade online do jogo. A progressão offline depende de cada jogo. Escolha o modo no botão direito da conta.</p>
-    <div class="modal-actions"><button class="primary" data-close>Entendi</button></div>`);
+function performanceHelp(id = state.selectedAccountId) {
+  const a=account(id), preset=a?.resolution||'auto';
+  modal(h`<h2 id="modal-title">Desempenho</h2>
+    <label class="setting-row" for="visual-rest"><span><strong>Descanso visual</strong><small>Contas ocultas: até 2 FPS e áudio silenciado, sem desconectar.</small></span><input id="visual-rest" type="checkbox" role="switch" ${state.preferences.visualRest?'checked':''}></label>
+    <p class="small-note">Pausa novas imagens animadas. Imagens já carregadas podem continuar até o próximo carregamento. Timers, rede e workers continuam sob controle do jogo.</p>
+    ${a?h`<div class="field"><label for="performance-mode">Atividade de ${esc(a.name)}</label><select id="performance-mode">${[['always',tr('Sempre ativa · desempenho máximo')],['adaptive',tr('Eco adaptativo')],['eco',tr('Economia de energia')],['visible',tr('Ativa quando visível')],['suspended',tr('Suspender · liberar RAM')]].map(([value,label])=>`<option value="${value}" ${a.activity===value?'selected':''}>${label}</option>`).join('')}</select></div>
+    <p class="small-note">Eco adaptativo: até 60 FPS na conta em uso. As secundárias usam o limite de economia, até 10 FPS com 4 contas carregadas e 5 FPS com 8.</p>
+    <div class="field"><label for="eco-fps">FPS em economia</label><select id="eco-fps">${[1,5,10,15,30].map(fps=>`<option value="${fps}" ${(a.ecoFPS||15)===fps?'selected':''}>${fps} FPS</option>`).join('')}</select></div>
+    <div class="field"><label for="resolution">Resolução fixa</label><select id="resolution">${[['auto',tr('Automática')],['720p','720p · 1280 × 720'],['768p','768p · 1366 × 768'],['900p','900p · 1600 × 900'],['1080p','1080p · 1920 × 1080']].map(([value,label])=>`<option value="${value}" ${preset===value?'selected':''}>${label}</option>`).join('')}</select></div>
+    <p class="small-note">A resolução virtual se ajusta ao painel. O ganho depende de como o jogo desenha a imagem.</p>
+    <button id="cleanup-memory" class="secondary" ${a.activity==='suspended'?'disabled':''}>Limpar memória sem uso</button><p id="cleanup-result" class="small-note" role="status" aria-live="polite">Solicita a coleta de objetos JavaScript sem uso. Preserva dados, sessões e recursos ainda usados pelo jogo.</p>`:''}
+    <p class="small-note">Modo Ultra: tela cheia para uma conta; as demais ficam em até 1 FPS. Saia pelo mesmo botão. Modos de economia mantêm a página carregada. Ativa quando visível descarrega após cinco minutos oculta; Suspender descarrega imediatamente.</p>
+    <div class="modal-actions"><button class="primary" data-close>Fechar</button></div>`,()=>{
+      el('visual-rest').onchange=e=>call(api.visualRest,e.target.checked);
+      if(!a)return;
+      el('performance-mode').onchange=async e=>{const result=await call(api.accountActivity,a.id,e.target.value);if(result.ok)el('cleanup-memory').disabled=e.target.value==='suspended';};
+      el('eco-fps').onchange=e=>call(api.accountEcoFPS,a.id,Number(e.target.value));
+      el('resolution').onchange=e=>call(api.accountResolution,a.id,e.target.value);
+      el('cleanup-memory').onclick=async e=>{
+        const button=e.currentTarget;button.disabled=true;
+        const result=await call(api.cleanup,a.id);
+        el('cleanup-result')?.replaceChildren(document.createTextNode(result.ok?tr(({collected:'Coleta solicitada. Recursos ainda usados pelo jogo permanecem na memória.',cooldown:'Aguarde dois minutos entre limpezas da mesma página.',debugging:'Feche as ferramentas de desenvolvimento antes de limpar.',busy:'Já existe uma limpeza em andamento.',closed:'A página foi fechada.'})[result.result]):tr('Não foi possível concluir.')));
+        button.disabled=account(a.id)?.activity==='suspended';
+      };
+    });
 }
 function updateDialog() {
   modal(h`<h2 id="modal-title">Atualizar Astria</h2><p id="update-status" class="sub" role="status">Verificando a última versão no GitHub…</p><p class="small-note">O download é verificado com a assinatura do Astria. Seus perfis e a pasta Save são preservados. Reiniciar desconecta temporariamente os jogos.</p><div class="modal-actions"><button class="secondary" data-close>Fechar</button><button id="update-action" class="primary" disabled>Verificando…</button></div>`, async () => {
@@ -257,7 +274,7 @@ document.body.addEventListener('click',e=>{
   const dot=e.target.closest('.account-link .color-dot');
   if(dot){chooseColor(account(dot.closest('[data-account]').dataset.account));return;}
   const b=e.target.closest('[data-action]');if(!b||!state)return;const id=b.dataset.id;
-  const actions={workspace:()=>call(api.workspaceSelect,id),select:()=>call(api.accountSelect,id),'add-account':()=>accountForm(),reload:()=>call(api.reload,id),mute:()=>call(api.mute,id),resume:()=>call(api.accountActivity,id,'visible'),activity:()=>call(api.accountActivity,id,b.dataset.mode),color:()=>chooseColor(account(id)),theme:()=>call(api.theme,state.preferences.theme==='dark'?'light':'dark'),'layout-menu':()=>{const r=b.getBoundingClientRect();call(api.layoutMenu,{x:r.left,y:r.bottom});},'account-menu':()=>{const r=b.getBoundingClientRect();menuFor(id,{x:r.right,y:r.bottom});}};
+  const actions={workspace:()=>call(api.workspaceSelect,id),select:()=>call(api.accountSelect,id),'add-account':()=>accountForm(),reload:()=>call(api.reload,id),mute:()=>call(api.mute,id),ultra:()=>call(api.ultra,id),performance:()=>performanceHelp(id),resume:()=>call(api.accountActivity,id,'visible'),activity:()=>call(api.accountActivity,id,b.dataset.mode),color:()=>chooseColor(account(id)),theme:()=>call(api.theme,state.preferences.theme==='dark'?'light':'dark'),'layout-menu':()=>{const r=b.getBoundingClientRect();call(api.layoutMenu,{x:r.left,y:r.bottom});},'account-menu':()=>{const r=b.getBoundingClientRect();menuFor(id,{x:r.right,y:r.bottom});}};
   actions[b.dataset.action]?.();
 });
 document.body.addEventListener('contextmenu',e=>{
@@ -267,7 +284,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&sidebarDrag){finishSidebarDrag(true);return;}
   if(e.key==='Escape'&&modalShowing){closeModal();return;}
   if(modalShowing){
-    if(e.key==='Tab'){const nodes=[...el('modal-root').querySelectorAll('input,button,[tabindex="0"]')];const first=nodes[0],last=nodes[nodes.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}
+    if(e.key==='Tab'){const nodes=[...el('modal-root').querySelectorAll('input:not(:disabled),select:not(:disabled),button:not(:disabled),[tabindex="0"]')];const first=nodes[0],last=nodes[nodes.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}
     return;
   }
 });
@@ -289,6 +306,6 @@ api.onMetrics(next=>{metrics=next;updateCosts();});
 api.onToast(toast);
 api.onUpdateProgress(percent=>{const node=el('update-status');if(node)node.textContent=h`Baixando e verificando os arquivos… ${percent}%`;});
 api.onCommand(({type,id})=>{
-  const commands={'add-account':()=>accountForm(),'rename-account':()=>renameAccount(account(id)),'account-color':()=>chooseColor(account(id)),'edit-account':()=>accountForm(account(id)),'delete-account':()=>confirmDelete(account(id)),'add-workspace':()=>workspaceForm(),'edit-workspace':()=>workspaceForm(true),import:confirmImport,'performance-help':performanceHelp,updates:updateDialog};commands[type]?.();
+  const commands={'add-account':()=>accountForm(),'rename-account':()=>renameAccount(account(id)),'account-color':()=>chooseColor(account(id)),'edit-account':()=>accountForm(account(id)),'delete-account':()=>confirmDelete(account(id)),'add-workspace':()=>workspaceForm(),'edit-workspace':()=>workspaceForm(true),import:confirmImport,'performance-help':()=>performanceHelp(id),updates:updateDialog};commands[type]?.();
 });
 api.getState().then(r=>{if(r?.ok){state=r.state;statuses=r.statuses||{};render();}else toast(tr('Não foi possível carregar a configuração.'));});

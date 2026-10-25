@@ -43,11 +43,21 @@ Open **☰ → Language → English / Português (Brasil)**. The choice is saved
 | Mode | Behavior |
 | --- | --- |
 | Always active / maximum performance | Speedometer icon. Keeps the page loaded and adds no animation FPS cap. Uses more resources. |
+| Adaptive Eco | Battery-and-lightning icon. Up to 60 FPS active; secondary budgets adapt to loaded account count. |
 | Power saving | Battery-and-lightning icon. Stays loaded across accounts and workspaces and paces animation callbacks to 15 FPS by default. |
 | Active when visible | Reduces background activity and unloads a hidden page after five minutes. Showing it reconnects the game. |
 | Suspended | Unloads immediately. Resume reopens the same saved profile. |
 
-Power saving is the button immediately after maximum performance. Right-click the account and choose **Activity → Power-saving FPS → 1 / 5 / 10 / 15 / 30 FPS**. The choice is saved per account and applies while visible too. Switching between maximum performance and power saving keeps the same page and session. The scheduler sleeps between animation budgets instead of polling every display refresh; maximum performance resumes immediately without that sleep.
+The battery-and-lightning button selects **Adaptive Eco**: the active account runs at up to 60 FPS; secondary accounts use their power-saving limit up to 15 FPS, capped at 10 FPS with four loaded accounts and 5 FPS with eight. Existing manual Power saving settings remain unchanged. Choose **Activity → Power saving** in the account menu for a fixed limit, then **Power-saving FPS → 1 / 5 / 10 / 15 / 30 FPS**. Both modes keep the same page and connection.
+
+Open the sliders button beside the page cost, or **☰ → Performance → About activity modes**, for:
+
+- **Visual rest:** loaded hidden accounts stay connected at up to 2 FPS and are muted. Their saved audio choice returns when shown. Newly loaded image animations are disabled; Chromium may keep already loaded images animating until reload. Do not reload an active game just to apply this setting.
+- **Fixed resolution per account:** Automatic, 720p (1280×720), 768p (1366×768), 900p (1600×900) or 1080p (1920×1080). A virtual viewport at device scale 1 fits the panel without cropping or changing the stored zoom. It may reduce rendering cost when the game sizes its canvas to the viewport; it does not shrink every game's assets.
+- **Ultra mode:** the expand button shows one game fullscreen and caps the other loaded accounts at 1 FPS, without disconnecting them. Use the same button to exit. Account/workspace switching exits Ultra. Visual rest and Ultra also keep already loaded Active when visible pages loaded while enabled; disabling them restores the normal five-minute unload rule.
+- **Clean unused memory:** manually requests JavaScript garbage collection in that account. It preserves live objects, storage and connections. Requests are serialized and successful cleanup has a two-minute cooldown per page; pages under debugging are skipped. Live textures and game data cannot safely be forced out of RAM.
+
+The star logo has outward rays and a short expansion on launch. Reduced-motion preferences disable it. No continuous logo animation consumes resources while playing.
 
 Power saving limits requestAnimationFrame callbacks in the page, embedded frames and account popups. It leaves browser clocks, timers, networking, CSS animations and worker loops unchanged, so it cannot guarantee a fixed CPU or power budget. Games that calculate progress per frame can behave differently at reduced FPS. Actual FPS can be lower than the target when covered, minimized or under load. The loaded page still uses RAM for live game data, images and other resources; reducing FPS does not remove those assets or impose a safe fixed memory cap. Power saving never unloads an account. Suspended releases its renderer memory and disconnects the game.
 

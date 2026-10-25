@@ -114,3 +114,16 @@ button:focus-visible,input:focus-visible {
 @container(max-width:340px) { .activity-controls button { width:22px; } .panel-head .icon-button { width:22px; } }
 @media(prefers-reduced-motion:reduce) { button,.theme-thumb { transition:none; } }
 .mode-icon svg{width:13px;height:13px;display:block}
+
+/* Keep the focused game and its exit control visible in Ultra. */
+.ultra .titlebar,.ultra .sidebar,.ultra .sidebar-resizer{display:none}
+.ultra .content{padding:0}.ultra .panel-grid{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr);height:100%}.ultra .panel{border-radius:0}
+.performance-button svg,.ultra-button svg{width:14px;height:14px}
+.ultra-button[aria-pressed="true"]{color:var(--accent);background:var(--tint)}
+.setting-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 0;cursor:pointer}.setting-row span{display:flex;flex-direction:column;gap:5px}.setting-row small{color:var(--muted);line-height:1.5}.setting-row input{appearance:none;flex:none;width:34px;height:20px;background:var(--raised);border:1px solid var(--line);border-radius:12px;position:relative;cursor:pointer}.setting-row input:before{content:"";position:absolute;left:3px;top:3px;width:12px;height:12px;border-radius:50%;background:var(--muted);transition:transform .15s}.setting-row input:checked{background:var(--tint);border-color:var(--accent)}.setting-row input:checked:before{transform:translateX(14px);background:var(--accent)}
+.field select{width:100%;padding:9px 10px;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:6px;font:inherit}select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.modal{max-height:calc(100vh - 40px);overflow-y:auto}button:disabled{cursor:default;opacity:.55}
+.brand-mark{animation:star-expand 1.1s ease-out;transform-origin:center}.brand:hover .brand-mark{transform:scale(1.12);transition:transform .35s ease-out}
+@keyframes star-expand{0%{transform:scale(.55);opacity:.35}60%{transform:scale(1.15);opacity:1}100%{transform:scale(1);opacity:1}}
+@media(prefers-reduced-motion:reduce){.brand-mark{animation:none}.brand:hover .brand-mark{transform:none;transition:none}.setting-row input:before{transition:none}}
+
+@container(max-width:420px){.panel-head .performance-button,.panel-head .layout-button{display:none}.activity-controls button{width:22px}}

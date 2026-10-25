@@ -1,6 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
-  <defs><linearGradient id="ray" x1="12" y1="4" x2="36" y2="44" gradientUnits="userSpaceOnUse"><stop stop-color="#edfbff"/><stop offset=".46" stop-color="#8ee5ed"/><stop offset="1" stop-color="#a99bff"/></linearGradient></defs>
-  <path d="m39 9-10 13-3-3Z" fill="#d3ccff"/>
-  <path d="m24 2 5.2 16.8L46 24l-16.8 5.2L24 46l-5.2-16.8L2 24l16.8-5.2Z" fill="url(#ray)"/>
-  <path d="m24 14 2.4 7.6L34 24l-7.6 2.4L24 34l-2.4-7.6L14 24l7.6-2.4Z" fill="#fff"/>
+<defs><linearGradient id="expansion" x1="10" y1="4" x2="38" y2="44" gradientUnits="userSpaceOnUse"><stop stop-color="#edfbff"/><stop offset=".45" stop-color="#8ee5ed"/><stop offset="1" stop-color="#a99bff"/></linearGradient></defs>
+  <path d="M24 2 29 19 46 24 29 29 24 46 19 29 2 24 19 19Z" stroke="url(#expansion)" stroke-width="1.4" opacity=".5"/>
+  <path d="m9 9 6 3-3 3Zm30 0-3 6-3-3Zm0 30-6-3 3-3ZM9 39l3-6 3 3Z" fill="url(#expansion)" opacity=".7"/>
+  <path d="m24 7 4.4 12.6L41 24l-12.6 4.4L24 41l-4.4-12.6L7 24l12.6-4.4Z" fill="url(#expansion)"/>
+  <path d="m24 16 2.1 5.9L32 24l-5.9 2.1L24 32l-2.1-5.9L16 24l5.9-2.1Z" fill="#fff"/>
 </svg>

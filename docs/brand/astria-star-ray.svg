@@ -1,11 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
-  <defs>
-    <linearGradient id="tile" x1="64" y1="40" x2="450" y2="490" gradientUnits="userSpaceOnUse"><stop stop-color="#253353"/><stop offset=".5" stop-color="#141c31"/><stop offset="1" stop-color="#101426"/></linearGradient>
-    <linearGradient id="ray" x1="158" y1="80" x2="363" y2="433" gradientUnits="userSpaceOnUse"><stop stop-color="#f2fcff"/><stop offset=".43" stop-color="#88dfe9"/><stop offset="1" stop-color="#a493f7"/></linearGradient>
-  </defs>
-  <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#tile)"/>
-  <rect x="17" y="17" width="478" height="478" rx="111" stroke="#65749b" stroke-opacity=".3" stroke-width="2"/>
-  <path d="m391 121-86 112-26-26Z" fill="#d3ccff"/>
-  <path d="m256 74 43 139 139 43-139 43-43 139-43-139-139-43 139-43Z" fill="url(#ray)"/>
-  <path d="m256 173 20 63 63 20-63 20-20 63-20-63-63-20 63-20Z" fill="#fff"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 48 48" fill="none">
+<defs><linearGradient id="tile" x1="6" y1="4" x2="44" y2="46" gradientUnits="userSpaceOnUse"><stop stop-color="#253353"/><stop offset="1" stop-color="#101426"/></linearGradient></defs><rect x="1.5" y="1.5" width="45" height="45" rx="10.5" fill="url(#tile)"/><g transform="translate(5 5) scale(.7916667)">
+<defs><linearGradient id="expansion" x1="10" y1="4" x2="38" y2="44" gradientUnits="userSpaceOnUse"><stop stop-color="#edfbff"/><stop offset=".45" stop-color="#8ee5ed"/><stop offset="1" stop-color="#a99bff"/></linearGradient></defs>
+  <path d="M24 2 29 19 46 24 29 29 24 46 19 29 2 24 19 19Z" stroke="url(#expansion)" stroke-width="1.4" opacity=".5"/>
+  <path d="m9 9 6 3-3 3Zm30 0-3 6-3-3Zm0 30-6-3 3-3ZM9 39l3-6 3 3Z" fill="url(#expansion)" opacity=".7"/>
+  <path d="m24 7 4.4 12.6L41 24l-12.6 4.4L24 41l-4.4-12.6L7 24l12.6-4.4Z" fill="url(#expansion)"/>
+  <path d="m24 16 2.1 5.9L32 24l-5.9 2.1L24 32l-2.1-5.9L16 24l5.9-2.1Z" fill="#fff"/>
+</g></svg>

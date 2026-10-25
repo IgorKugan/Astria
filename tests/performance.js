@@ -1,0 +1,17 @@
+'use strict';
+const assert = require('node:assert/strict');
+const { frameBudget, resolutionBounds } = require('../src/performance');
+const adaptive = { activity: 'adaptive', ecoFPS: 15 };
+assert.equal(frameBudget(adaptive, { active: true, loaded: 8 }), 60);
+assert.equal(frameBudget({...adaptive,ecoFPS:30}, {loaded:2}), 15, 'adaptive secondary ceiling is 15 even with a larger manual limit');
+for (const [loaded, fps] of [[1,15],[4,10],[8,5]]) assert.equal(frameBudget(adaptive, { loaded }), fps);
+assert.equal(frameBudget({activity:'eco',ecoFPS:5}, {active:true}), 5, 'manual setting preserved');
+assert.equal(frameBudget({activity:'always'}, {}), 0);
+assert.equal(frameBudget({activity:'always'}, {rest:true}), 2);
+assert.equal(frameBudget(adaptive, {active:true,rest:true}), 2);
+assert.equal(frameBudget({activity:'always'}, {ultraBackground:true}), 1);
+assert.equal(frameBudget({activity:'eco',ecoFPS:1}, {rest:true}), 1);
+assert.deepEqual(resolutionBounds('720p', {x:10,y:30,width:1000,height:800}), {x:10,y:148,width:1000,height:563});
+assert.equal(resolutionBounds('invalid', {x:0,y:0,width:100,height:100}), null);
+assert.equal(resolutionBounds('__proto__', {x:0,y:0,width:100,height:100}), null);
+console.log('PASS: adaptive/legacy/rest/Ultra frame budgets and aspect-ratio fit');

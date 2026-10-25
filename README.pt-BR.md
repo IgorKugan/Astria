@@ -43,11 +43,21 @@ Abra **☰ → Idioma → English / Português (Brasil)**. A escolha fica salva 
 | Modo | Comportamento |
 | --- | --- |
 | Sempre ativa / desempenho máximo | Ícone de velocímetro. Mantém a página carregada e não impõe limite de FPS às animações. Usa mais recursos. |
+| Eco adaptativo | Bateria com raio. Até 60 FPS na conta ativa; as secundárias se ajustam à quantidade de contas carregadas. |
 | Economia de energia | Ícone de bateria com raio. Mantém a conta carregada em outros espaços e limita os quadros de animação a 15 FPS por padrão. |
 | Ativa quando visível | Reduz atividade em segundo plano e descarrega uma página oculta após cinco minutos. Ao voltar, reconecta o jogo. |
 | Suspensa | Descarrega imediatamente. Retomar reabre o mesmo perfil salvo. |
 
-Economia de energia fica imediatamente após desempenho máximo. Clique com o botão direito na conta e escolha **Atividade → FPS em economia → 1 / 5 / 10 / 15 / 30 FPS**. A escolha é salva por conta e também vale com a página visível. Trocar entre desempenho máximo e economia mantém a mesma página e sessão. O agendador espera entre os quadros permitidos, em vez de verificar cada atualização do monitor; desempenho máximo retoma imediatamente sem essa espera.
+O botão de bateria com raio seleciona **Eco adaptativo**: até 60 FPS na conta em uso; as secundárias usam o limite de economia até 15 FPS, com máximo de 10 FPS a partir de quatro contas carregadas e 5 FPS a partir de oito. Configurações existentes de economia manual são preservadas. Para limite fixo, use **Atividade → Economia de energia** no menu da conta e **FPS em economia → 1 / 5 / 10 / 15 / 30 FPS**. Ambos mantêm a mesma página e conexão.
+
+Abra o botão de ajustes ao lado do custo da página ou **☰ → Desempenho → Sobre os modos** para:
+
+- **Descanso visual:** contas ocultas já carregadas continuam conectadas em até 2 FPS e sem áudio. Ao mostrar a conta, volta a escolha de áudio salva. Desativa animações de imagens novas; o Chromium pode manter imagens já carregadas animadas até recarregar. Não recarregue uma partida só para aplicar essa opção.
+- **Resolução fixa por conta:** Automática, 720p (1280×720), 768p (1366×768), 900p (1600×900) ou 1080p (1920×1080). A área virtual usa escala de dispositivo 1 e se ajusta ao painel sem cortes, preservando o zoom salvo. Pode reduzir o custo quando o jogo dimensiona seu canvas pela área disponível; não reduz todos os arquivos do jogo.
+- **Modo Ultra:** o botão de expandir mostra uma conta em tela cheia e limita as demais carregadas a 1 FPS, sem desconectar. Saia pelo mesmo botão. Trocar de conta/espaço encerra Ultra. Descanso visual e Ultra também mantêm carregadas páginas já abertas em Ativa quando visível; desativá-los restaura a regra normal de descarregar após cinco minutos.
+- **Limpar memória sem uso:** solicita manualmente a coleta de objetos JavaScript daquela conta. Preserva objetos vivos, dados e conexões. As solicitações são serializadas, com intervalo de dois minutos após sucesso; ignora páginas em depuração. Texturas e dados ainda usados pelo jogo não podem ser removidos da RAM com segurança.
+
+O logo tem uma estrela com raios para fora e uma expansão curta ao abrir. A preferência de movimento reduzido desativa a animação. Não há animação contínua consumindo recursos durante o jogo.
 
 A economia limita callbacks de requestAnimationFrame na página, nos frames incorporados e nos popups da conta. Relógios, timers, rede, animações CSS e workers continuam nativos; por isso não há garantia de um consumo fixo de CPU ou energia. Jogos que calculam progresso por quadro podem se comportar de outra forma com FPS reduzido. O FPS real pode ficar abaixo da meta quando a página estiver coberta, minimizada ou sob carga. A página continua usando RAM para dados ativos, imagens e outros recursos do jogo; reduzir FPS não remove esses arquivos nem impõe um limite fixo seguro de memória. Economia de energia nunca descarrega a conta. Suspensa libera a memória do processo da página e desconecta o jogo.
 
