@@ -110,7 +110,9 @@ function render() {
 function scheduleLayout() {
   if(sidebarDrag)return;
   if(queuedLayout) return; queuedLayout=true;
-  requestAnimationFrame(()=>{
+  let sent=false;
+  const send=()=>{
+    if(sent)return;sent=true;clearTimeout(fallback);
     queuedLayout=false;
     const viewport=el('content').getBoundingClientRect();
     const rects=[...document.querySelectorAll('[data-slot]')].map(node=>{
@@ -118,7 +120,10 @@ function scheduleLayout() {
       return {id:node.dataset.slot,x,y,width:Math.min(r.right,viewport.right)-x,height:Math.min(r.bottom,viewport.bottom)-y};
     }).filter(r=>r.width>=100&&r.height>=75);
     api.layout(rects);
-  });
+  };
+  // Covered windows may receive no animation frames, including after an update.
+  const fallback=setTimeout(send,100);
+  requestAnimationFrame(send);
 }
 function modal(markup, ready) {
   modalShowing=true; api.setOverlay(true);

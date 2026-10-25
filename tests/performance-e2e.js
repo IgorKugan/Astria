@@ -55,6 +55,11 @@ async function samples(){return application.evaluate(async({webContents})=>Promi
   for(let i=0;i<100&&!(await samples()).some(s=>s.url.endsWith('#2'));i++)await delay(100);
   const reopened=(await samples()).find(s=>s.url.endsWith('#2'));assert.equal(reopened.initialWidth,1280);assert.equal(reopened.initialHeight,720);
   const restored=(await page.evaluate(()=>window.multiNest.getState())).state;assert.equal(restored.preferences.visualRest,true);assert.equal(restored.accounts.find(a=>a.id==='a2').resolution,'720p');assert.equal(restored.accounts.find(a=>a.id==='a2').activity,'adaptive');assert.ok(!restored.ultraAccountId,'fullscreen is not persisted');
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(resolve)));
+  await page.evaluate(()=>{window.savedRAF=window.requestAnimationFrame;window.requestAnimationFrame=()=>0;return window.multiNest.sidebarWidth(188);});
+  await delay(1200);
+  assert.ok(await application.evaluate(({BaseWindow})=>BaseWindow.getAllWindows()[0].contentView.children.some(v=>v.onScreen&&v.webContents?.getURL().endsWith('#2'))),'layout must reach the host when native animation frames are unavailable');
+  await page.evaluate(()=>{window.requestAnimationFrame=window.savedRAF;delete window.savedRAF;});
   fs.writeFileSync(path.join(dir,'performance-e2e.json'),JSON.stringify({passed:true,checks:['adaptive budgets','2 FPS rest','WebSocket and timer continuity','same document instances','mute restoration','four fixed virtual viewports','scaled pointer input','Ultra fullscreen and 1 FPS secondary','manual GC live-object/storage retention','cooldown','bilingual controls','light/dark screenshots','reduced motion']},null,2));
   console.log('PASS: live adaptive/rest/Ultra transitions, network continuity, resolutions, pointer input, cleanup and bilingual controls');
 })().catch(error=>{console.error(error);process.exitCode=1;}).finally(async()=>{if(application)await application.close();clearInterval(ticker);for(const socket of sockets)socket.destroy();server.close();});

@@ -44,3 +44,5 @@
 - CI exposed native fixed-resolution startup calling Electron emulation before a render widget existed. Fixed by staging preset-sized views behind the interface and fitting/revealing after main DOM readiness. Initial game scripts now see the requested preset dimensions.
 - Readiness is invalidated on committed main navigation, preserving visible games across canceled/download navigations. Both mocked regressions failed before their fixes; native startup and attachment-download checks pass locally. Full GitHub Tests passed after the native-readiness fix.
 - Removed a redundant process-exit wait: Playwright already waits for process closure; it was not the cause of the restart crash.
+
+- Added a one-shot timer fallback for trusted layout IPC. Deliberately withholding UI RAF reproduced a permanent native-view/layout stall before the fix; the same integration check passes afterward. Health validation still waits for a valid layout.
