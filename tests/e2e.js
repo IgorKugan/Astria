@@ -194,8 +194,10 @@ async function readStorage(id) {
   await firstLink.click({button:'right'});await clickMenu(['Atividade','FPS em economia','10 FPS']);
   await page.waitForFunction(()=>document.querySelector('[data-mode="eco"][aria-pressed="true"]').title.includes('10 FPS'));
   await page.locator('[data-mode="visible"]').first().click();
-  // Layout controls are also directly accessible from each panel header.
-  await page.locator('.layout-button').first().click();await clickMenu(['Colunas']);
+  // The runner may have a small desktop: use the compact app-menu fallback.
+  if (await page.locator('.layout-button').first().isVisible()) {
+    await page.locator('.layout-button').first().click();await clickMenu(['Colunas']);
+  } else await appMenu('Layout','Colunas');
   await page.waitForSelector('.panel-grid.columns');
   // Narrow columns move the optional header control into the app menu.
   if (await page.locator('.layout-button').first().isVisible()) {
