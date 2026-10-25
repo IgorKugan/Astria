@@ -40,3 +40,7 @@
 - Signed update from a clean 1.6.12 fixture to 1.7.0 passed account/cookie/user-file preservation and invalid-executable rollback. One earlier health-confirmation attempt timed out; subsequent upgrade attempts confirmed health normally. No production updater behavior was changed.
 - Updated the existing update test to support unattended closure of its own temporary fixture and inspect the authoritative rollback result/restored binary instead of Windows PowerShell bootstrap exit codes.
 - Delivery: signed 1.7.0 ZIP/manifest/signature prepared for the existing GitHub release channel. Production Save and executable were not modified. Authenticated game memory/FPS gains still require user testing.
+
+- CI exposed native fixed-resolution startup calling Electron emulation before a render widget existed. Fixed by staging preset-sized views behind the interface and fitting/revealing after main DOM readiness. Initial game scripts now see the requested preset dimensions.
+- Readiness is invalidated on committed main navigation, preserving visible games across canceled/download navigations. Both mocked regressions failed before their fixes; native startup and attachment-download checks pass locally. Full GitHub Tests passed after the native-readiness fix.
+- Removed a redundant process-exit wait: Playwright already waits for process closure; it was not the cause of the restart crash.
