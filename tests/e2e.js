@@ -197,7 +197,10 @@ async function readStorage(id) {
   // Layout controls are also directly accessible from each panel header.
   await page.locator('.layout-button').first().click();await clickMenu(['Colunas']);
   await page.waitForSelector('.panel-grid.columns');
-  await page.locator('.layout-button').first().click();await clickMenu(['Grade automática']);
+  // Narrow columns move the optional header control into the app menu.
+  if (await page.locator('.layout-button').first().isVisible()) {
+    await page.locator('.layout-button').first().click();await clickMenu(['Grade automática']);
+  } else await appMenu('Layout','Grade automática');
   await page.click('#add-account');
   await waitUntil(async () => (await getViews()).length === 0, 'modal covers native panels');
   await page.keyboard.press('Escape');
