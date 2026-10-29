@@ -63,6 +63,12 @@ Power saving limits requestAnimationFrame callbacks in the page, embedded frames
 
 Unloading may disconnect a character. Offline progress depends on the game. Memory figures exclude shared app/GPU overhead. Compatibility depends on the website and its authentication requirements.
 
+### Floating layout
+
+Choose **Layout → Floating** in the panel toolbar or app menu. One account fills the main area and a live second account appears above it. Click the miniature to swap accounts; press and drag it to move without swapping. The corner button moves it to the next corner. The swap button in the main toolbar also works with Enter, and arrow keys move the miniature while that button is focused.
+
+Selecting another account in the sidebar puts the previous main account in the miniature. Both pages keep their existing sessions and activity modes; no screenshot polling or duplicate game instance is used. The position is remembered per workspace and stays inside the visible game when resizing or using a fixed resolution. With only one available account, it remains a normal full-size panel. Explicitly suspended accounts are excluded from the miniature. Dialogs and other workspaces hide it. In Ultra fullscreen the pair still swaps; the miniature follows Ultra's existing secondary-account frame limit.
+
 ## Portable data
 
 Pages opened in the background start with a usable viewport, based on the visible panel, rather than a 1×1 surface. This lets games calculate their initial canvas, camera and interface at a normal size. Switching Always active accounts keeps the same page instance and its in-memory state; it does not reload or copy another account's data.

@@ -12,8 +12,8 @@ function frameBudget(account, { active = false, loaded = 1, rest = false, ultraB
   return fps;
 }
 function resolutionBounds(preset, panel) {
-  const size = Object.hasOwn(resolutions, preset) ? resolutions[preset] : null;
-  if (!size) return null;
+  const size = typeof preset === 'string' ? Object.hasOwn(resolutions, preset) ? resolutions[preset] : null : preset;
+  if (!size || ![size.width,size.height].every(value=>Number.isFinite(value)&&value>0)) return null;
   const scale = Math.min(panel.width / size.width, panel.height / size.height);
   const width = Math.round(size.width * scale), height = Math.round(size.height * scale);
   return {x: panel.x + Math.floor((panel.width-width)/2), y: panel.y + Math.floor((panel.height-height)/2), width, height};

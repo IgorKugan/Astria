@@ -63,6 +63,12 @@ A economia limita callbacks de requestAnimationFrame na página, nos frames inco
 
 Descarregar pode desconectar o personagem. A progressão offline depende do jogo. As métricas não incluem o custo compartilhado do aplicativo/GPU. A compatibilidade depende do site e de sua autenticação.
 
+### Layout flutuante
+
+Escolha **Layout → Flutuante** na barra do painel ou no menu do aplicativo. Uma conta ocupa a área principal e uma segunda conta aparece ao vivo por cima. Clique na pequena para trocar as contas; clique e arraste para movê-la sem trocar. O botão de canto move para o próximo canto. O botão de troca na barra principal também funciona com Enter, e as setas movem a janela enquanto esse botão está focado.
+
+Ao escolher outra conta na lateral, a anterior fica na janela pequena. As duas páginas mantêm suas sessões e modos de atividade, sem capturas periódicas de tela nem uma segunda instância do jogo. A posição é salva por espaço e fica dentro da imagem do jogo ao redimensionar ou usar resolução fixa. Com uma única conta disponível, ela continua em tamanho normal. Contas suspensas são excluídas da janela pequena. Diálogos e outros espaços ocultam a janela. No Ultra em tela cheia as contas continuam trocando; a pequena segue o limite de quadros que o Ultra já aplica às contas secundárias.
+
 ## Dados portáteis
 
 Páginas abertas em segundo plano começam com uma área de tamanho adequado, baseada no painel visível, em vez de uma superfície de 1×1 pixel. Assim, os jogos podem calcular o Canvas, a câmera e a interface iniciais em um tamanho normal. Trocar entre contas Sempre ativas mantém a mesma página e seu estado em memória; não recarrega nem copia dados de outra conta.

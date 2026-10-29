@@ -14,4 +14,6 @@ assert.equal(frameBudget({activity:'eco',ecoFPS:1}, {rest:true}), 1);
 assert.deepEqual(resolutionBounds('720p', {x:10,y:30,width:1000,height:800}), {x:10,y:148,width:1000,height:563});
 assert.equal(resolutionBounds('invalid', {x:0,y:0,width:100,height:100}), null);
 assert.equal(resolutionBounds('__proto__', {x:0,y:0,width:100,height:100}), null);
+assert.deepEqual(resolutionBounds({width:1280,height:720},{x:10,y:30,width:1000,height:800}),{x:10,y:148,width:1000,height:563});
+for(const width of [0,-1,NaN,Infinity])assert.equal(resolutionBounds({width,height:720},{x:0,y:0,width:100,height:100}),null);
 console.log('PASS: adaptive/legacy/rest/Ultra frame budgets and aspect-ratio fit');

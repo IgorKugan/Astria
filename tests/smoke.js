@@ -58,6 +58,8 @@ class WebContentsViewMock {
   setBounds(bounds) { this.bounds = bounds; }
   getBounds() { return this.bounds; }
   setVisible(value) { this.visible = value; }
+  getVisible() { return this.visible; }
+  setBackgroundColor() {}
 }
 class ViewMock {
   // `native` models the stacking Windows actually draws. Reordering an

@@ -7,6 +7,8 @@
   else root.AstriaI18n = api;
 })(typeof window === 'object' ? window : globalThis, () => {
   const strings = {
+    'Flutuante':'Floating', 'Clique para trocar. Arraste para mover.':'Click to swap. Drag to move.', 'Mover para outro canto':'Move to next corner', 'Trocar com conta flutuante · setas para mover':'Swap with floating account · arrow keys to move', 'Posição inválida.':'Invalid position.',
+
     "Eco adaptativo":"Adaptive Eco",
     "Descanso visual":"Visual rest",
     "Modo Ultra":"Ultra mode",

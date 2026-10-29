@@ -10,6 +10,7 @@ const { planViewLoads } = require('./view-loads');
 const { closePage } = require('./view-close');
 const { frameBudget, resolutions, resolutionBounds } = require('./performance');
 const { collectPageMemory } = require('./memory-cleanup');
+const { floatingPosition, floatingAccount, floatingBounds, positionAt } = require('./floating-layout');
 const { configureStorage, writeAccountGuide } = require('./storage');
 const { Updates } = require('./updates');
 const releaseConfig = require('./release-config.json');
@@ -34,6 +35,7 @@ if (process.env.ASTRIA_SAFE_GPU !== '1') {
 
 let windowMain;
 let interfaceView;
+let floatingView, floatingFrame, floatingDrag;
 let state;
 const I18n = require('./i18n');
 const T = (value, ...values) => typeof value === 'string' ? I18n.translate(value, state?.preferences.language || 'en') : I18n.tag(value, values, state?.preferences.language || 'en');
@@ -94,7 +96,7 @@ const initialConfig = () => ({
   preferences: { theme: 'dark', sidebarWidth: 152, language: 'en' }
 });
 
-const allowedLayouts = new Set(['auto', 'columns', 'rows', 'focus']);
+const allowedLayouts = new Set(['auto', 'columns', 'rows', 'focus', 'floating']);
 const safeString = (s, max = 120) => String(s ?? '').trim().slice(0, max);
 const hasId = (id) => typeof id === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(id);
 
@@ -121,7 +123,7 @@ function normalizeImport(json) {
     if (!w || typeof w !== 'object') continue;
     const id = hasId(w.id) && !used.has(w.id) ? w.id : randomUUID();
     used.add(id);
-    workspaces.push({ id, name: safeString(w.name, 55) || T('Espaço'), layout: allowedLayouts.has(w.layout) ? w.layout : 'auto' });
+    workspaces.push({ id, name: safeString(w.name, 55) || T('Espaço'), layout: allowedLayouts.has(w.layout) ? w.layout : 'auto', ...(w.floating ? {floating:floatingPosition(w.floating)} : {}) });
   }
   if (!workspaces.length) workspaces.push({ id: randomUUID(), name: T('Meus jogos'), layout: 'auto' });
   const wIds = new Set(workspaces.map(w => w.id));
@@ -222,8 +224,8 @@ function setFrameLimit(contents, account, force = false) {
 
 function applyResolution(view, account, panel = view.getBounds()) {
   view.panelBounds = panel;
-  const contents = view.webContents, size = resolutions[account.resolution];
-  const fitted = resolutionBounds(account.resolution, panel);
+  const contents = view.webContents, size = resolutions[account.resolution] || view.floatingViewport;
+  const fitted = resolutionBounds(size, panel);
   if (fitted) {
     // A new native view has no render widget yet. Initialize at the game's
     // preset size below the UI, then fit it only after the document is ready.
@@ -232,7 +234,7 @@ function applyResolution(view, account, panel = view.getBounds()) {
       contents.setZoomFactor(1);
       return;
     }
-    const key = `${account.resolution}:${fitted.width}:${fitted.height}`;
+    const key = `${size.width}x${size.height}:${fitted.width}:${fitted.height}`;
     view.setBounds(fitted);
     if (view.resolutionKey !== key) {
       contents.setZoomFactor(1);
@@ -318,8 +320,8 @@ function makeView(account) {
   view.webContents.setUserAgent(ua);
   view.webContents.on('context-menu', (_event, params) => showAccountMenu(account.id, null, params));
   view.webContents.on('focus', () => {
-    if (!overlayOpen && view.onScreen && state.selectedAccountId !== account.id) {
-      state.selectedAccountId = account.id;
+    if (!overlayOpen && view.onScreen && !view.floatingViewport && state.selectedAccountId !== account.id) {
+      selectAccountState(account.id);
       publish();
     }
   });
@@ -434,8 +436,9 @@ function placeView(view, layer) {
 
 function refreshViews() {
   if (quitting || !windowMain || windowMain.isDestroyed()) return;
+  updateFloatingFrame();
   const windowVisible = windowMain.isVisible() && !windowMain.isMinimized();
-  const visible = new Set(windowVisible ? currentAccounts().filter(a => boundsForAccounts.has(a.id) && (!state.ultraAccountId || state.ultraAccountId === a.id)).map(a => a.id) : []);
+  const visible = new Set(windowVisible ? currentAccounts().filter(a => boundsForAccounts.has(a.id) && (!state.ultraAccountId || state.ultraAccountId === a.id || floatingFrame?.accountId === a.id)).map(a => a.id) : []);
   // Release slots belonging to accounts that were suspended before this pass.
   for (const account of state.accounts) if (modeFor(account) === 'suspended') destroyView(account.id, true);
   const starts = planViewLoads(state.accounts, {
@@ -451,6 +454,13 @@ function refreshViews() {
   for (const account of state.accounts) {
     const view = views.get(account.id);
     if (!view) continue;
+    const floatingSize = floatingFrame?.accountId === account.id ? floatingFrame.viewport : undefined;
+    if (floatingSize || view.floatingViewport) {
+      const panel = boundsForAccounts.get(account.id) || view.floatingArea || view.panelBounds;
+      view.floatingViewport = floatingSize;
+      if (floatingSize) view.floatingArea = floatingFrame.area;
+      if (panel) applyResolution(view,account,panel);
+    }
     const throttled = !(backgroundMode(modeFor(account)) || state.preferences.visualRest || state.ultraAccountId) || !windowVisible;
     if (view.throttled !== throttled) {
       view.webContents.setBackgroundThrottling(throttled);
@@ -474,7 +484,7 @@ function refreshViews() {
         continue;
       }
       view.activityMode = mode;
-      view.onScreen = onScreen && !overlayOpen && (view.rendererReady || !resolutions[account.resolution]);
+      view.onScreen = onScreen && !overlayOpen && (view.rendererReady || !resolutions[account.resolution] && !view.floatingViewport);
       if (view.onScreen) {
         applyResolution(view, account, boundsForAccounts.get(account.id));
         view.setVisible(true);
@@ -504,6 +514,7 @@ function refreshViews() {
       }
     }
   }
+  refreshFloatingView();
   focusRequestedAccount();
   scheduleMetrics();
 }
@@ -512,6 +523,107 @@ function visibleViews() {
   if (!windowMain || windowMain.isDestroyed() || !windowMain.isVisible() || windowMain.isMinimized() || overlayOpen) return [];
   const attached = windowMain.contentView.children;
   return [...views].filter(([, view]) => attached.includes(view) && view.onScreen && !view.webContents.isDestroyed());
+}
+
+function updateFloatingFrame() {
+  if (floatingFrame && boundsForAccounts.get(floatingFrame.accountId) === floatingFrame.body) boundsForAccounts.delete(floatingFrame.accountId);
+  floatingFrame = undefined;
+  const secondary = floatingAccount(state);
+  const primary = currentAccounts().find(a=>a.id===state.selectedAccountId) || currentAccounts()[0];
+  const slot = primary && boundsForAccounts.get(primary.id);
+  const area = slot && (resolutionBounds(primary.resolution,slot) || slot);
+  if (!secondary || !area) return;
+  const viewport = resolutions[secondary.resolution] || {width:Math.round(area.width/(secondary.zoom||1)),height:Math.round(area.height/(secondary.zoom||1))};
+  const workspace = state.workspaces.find(w=>w.id===state.activeWorkspaceId);
+  const card = floatingBounds(area,viewport,workspace.floating);
+  if (!card) return;
+  const body = {x:card.x+2,y:card.y+26,width:card.width-4,height:card.height-28};
+  floatingFrame = {accountId:secondary.id,primaryId:primary.id,workspaceId:workspace.id,slot,area,viewport,card,body};
+  boundsForAccounts.set(secondary.id,body);
+}
+
+function closeFloatingView() {
+  floatingDrag = undefined;
+  if (!floatingView) return;
+  const contents = floatingView.webContents;
+  if (windowMain && !windowMain.isDestroyed() && windowMain.contentView.children.includes(floatingView)) windowMain.contentView.removeChildView(floatingView);
+  floatingView = undefined;
+  if (!contents.isDestroyed()) contents.close();
+}
+
+function sendFloatingState() {
+  if (!floatingView || floatingView.webContents.isDestroyed() || !floatingFrame) return;
+  const a = accountById(floatingFrame.accountId);
+  const value = {name:a.name,color:a.color,theme:state.preferences.theme,language:state.preferences.language,ready:!!views.get(a.id)?.onScreen};
+  const key = JSON.stringify(value);
+  if (floatingView.stateKey !== key) {floatingView.stateKey=key;floatingView.webContents.send('floating:state',value);}
+}
+
+function raiseFloating(view) {
+  if (windowMain.contentView.children.at(-1) === view) return;
+  if (windowMain.contentView.children.includes(view)) windowMain.contentView.removeChildView(view);
+  windowMain.contentView.addChildView(view);
+}
+
+function refreshFloatingView() {
+  if (!floatingAccount(state)) {closeFloatingView();return;}
+  const show = !!floatingFrame && !overlayOpen && windowMain.isVisible() && !windowMain.isMinimized();
+  if (!show) {
+    floatingDrag = undefined;
+    if (floatingView) {
+      floatingView.setVisible(false);
+      if (windowMain.contentView.children.includes(floatingView)) windowMain.contentView.removeChildView(floatingView);
+    }
+    return;
+  }
+  if (!floatingView) {
+    const chrome = new WebContentsView({webPreferences:{preload:path.join(__dirname,'floating-preload.js'),nodeIntegration:false,contextIsolation:true,sandbox:true,spellcheck:false}});
+    floatingView = chrome;
+    chrome.setBackgroundColor('#00000000');
+    chrome.webContents.setWindowOpenHandler(()=>({action:'deny'}));
+    chrome.webContents.on('will-navigate',event=>event.preventDefault());
+    chrome.webContents.once('did-finish-load',()=>{if(floatingView===chrome){chrome.stateKey=undefined;sendFloatingState();}});
+    chrome.webContents.loadFile(path.join(__dirname,'floating.html'));
+  }
+  floatingView.setBounds(floatingFrame.card);
+  floatingView.setVisible(true);
+  const game = views.get(floatingFrame.accountId);
+  // Keep the miniature above the main native game without reparenting during drag.
+  const children = windowMain.contentView.children;
+  if (game?.onScreen && children.indexOf(game) !== children.length-(children.includes(floatingView)?2:1)) raiseFloating(game);
+  raiseFloating(floatingView);
+  sendFloatingState();
+}
+
+function floatingSender(event) {
+  return !!floatingView && !floatingView.webContents.isDestroyed() && event.sender===floatingView.webContents && event.senderFrame===floatingView.webContents.mainFrame && isInterfaceURL(event.senderFrame?.url,path.join(__dirname,'floating.html'));
+}
+
+function swapFloating() {
+  if (!floatingFrame || overlayOpen || !windowMain.isVisible() || windowMain.isMinimized()) return {ok:false};
+  const {accountId,primaryId,slot} = floatingFrame;
+  const workspace=state.workspaces.find(w=>w.id===state.activeWorkspaceId);
+  workspace.floating={...floatingPosition(workspace.floating),accountId:primaryId};
+  state.selectedAccountId=accountId;
+  if(state.ultraAccountId)state.ultraAccountId=accountId;
+  floatingDrag=undefined;
+  boundsForAccounts.set(accountId,slot);
+  requestAccountFocus();publish();return {ok:true};
+}
+
+function moveFloating(x,y) {
+  if (!floatingFrame || overlayOpen) return;
+  const workspace=state.workspaces.find(w=>w.id===state.activeWorkspaceId);
+  workspace.floating={...floatingPosition(workspace.floating),accountId:floatingFrame.accountId,...positionAt(floatingFrame.area,floatingFrame.card,x,y)};
+  refreshViews();
+}
+
+function selectAccountState(id) {
+  const workspace=state.workspaces.find(w=>w.id===state.activeWorkspaceId);
+  if(workspace.layout==='floating' && state.selectedAccountId!==id && currentAccounts().some(a=>a.id===state.selectedAccountId)) {
+    workspace.floating={...floatingPosition(workspace.floating),accountId:state.selectedAccountId};
+  }
+  state.selectedAccountId=id;
 }
 
 function scheduleMetrics(delay = 200) {
@@ -541,11 +653,11 @@ function accountById(id) {
   return account;
 }
 
-function listen(name, fn) {
+function listen(name, fn, authorize = trustedSender) {
   actions.set(name, fn);
   ipcMain.handle(name, async (event, ...args) => {
     try {
-      if (!trustedSender(event)) throw new Error(T('Origem não autorizada.'));
+      if (!authorize(event)) throw new Error(T('Origem não autorizada.'));
       return await fn(...args);
     }
     catch (err) { return { ok: false, error: T(err.message || String(err)) }; }
@@ -637,7 +749,7 @@ function showAppMenu(point) {
     { label: T('Novo espaço…'), click: () => uiCommand('add-workspace') },
     { label: T('Editar espaço…'), click: () => uiCommand('edit-workspace') },
     { type: 'separator' },
-    { label: 'Layout', submenu: Object.entries({ auto: T('Grade automática'), columns: T('Colunas'), rows: T('Linhas'), focus: T('Uma conta por vez') }).map(([layout, label]) => ({ label, type: 'radio', checked: workspace.layout === layout, click: () => runAction('workspace:layout', layout) })) },
+    { label: 'Layout', submenu: Object.entries({ auto: T('Grade automática'), columns: T('Colunas'), rows: T('Linhas'), focus: T('Uma conta por vez'), floating: T('Flutuante') }).map(([layout, label]) => ({ label, type: 'radio', checked: workspace.layout === layout, click: () => runAction('workspace:layout', layout) })) },
     { type: 'separator' },
     { label: T('Exportar configuração…'), click: () => runAction('config:export') },
     { label: T('Importar configuração…'), click: () => uiCommand('import') },
@@ -660,6 +772,33 @@ function showAppMenu(point) {
 }
 
 function registerIPC() {
+  const floatingControl = event=>trustedSender(event)||floatingSender(event);
+  listen('floating:swap',swapFloating,floatingControl);
+  listen('floating:corner',()=>{
+    if(!floatingFrame)return {ok:false};
+    const w=state.workspaces.find(w=>w.id===state.activeWorkspaceId),p=floatingPosition(w.floating);
+    const next=p.x>=.5?(p.y>=.5?{x:0,y:1}:{x:1,y:1}):(p.y>=.5?{x:0,y:0}:{x:1,y:0});
+    w.floating={...p,accountId:floatingFrame.accountId,...next};refreshViews();persistState();return {ok:true};
+  },floatingControl);
+  listen('floating:step',(x,y)=>{
+    if(!Number.isFinite(x)||!Number.isFinite(y))throw new Error(T('Posição inválida.'));
+    if(!floatingFrame)return {ok:false};
+    moveFloating(floatingFrame.card.x+x,floatingFrame.card.y+y);persistState();return {ok:true};
+  },floatingControl);
+  ipcMain.on('floating:drag-start',event=>{
+    if(!floatingSender(event)||!floatingFrame||overlayOpen||!floatingView.getVisible())return;
+    floatingDrag={accountId:floatingFrame.accountId,workspaceId:state.activeWorkspaceId,x:floatingFrame.card.x,y:floatingFrame.card.y};
+  });
+  ipcMain.on('floating:drag-move',(event,x,y)=>{
+    if(!floatingSender(event)||!floatingDrag||floatingDrag.accountId!==floatingFrame?.accountId||floatingDrag.workspaceId!==state.activeWorkspaceId||!Number.isFinite(x)||!Number.isFinite(y))return;
+    moveFloating(floatingDrag.x+x,floatingDrag.y+y);
+  });
+  ipcMain.on('floating:drag-end',event=>{
+    if(!floatingSender(event)||!floatingDrag)return;
+    floatingDrag=undefined;
+    try {persistState();} catch(error) {windowMain.webContents.send('ui:toast',T(error.message));}
+    requestAccountFocus(state.selectedAccountId,false);focusRequestedAccount();
+  });
   listen('settings:language', language => {
     if (!['en', 'pt-BR'].includes(language)) throw new Error(T('Idioma inválido.'));
     state.preferences.language = language;
@@ -722,7 +861,7 @@ function registerIPC() {
       url: safeURL(data?.url), muted: false, zoom: 1,
       color: normalizeColor(data?.color) || colors.mint, activity: 'visible', ecoFPS: 15
     };
-    state.accounts.push(account); state.selectedAccountId = account.id;
+    state.accounts.push(account); selectAccountState(account.id);
     requestAccountFocus();
     publish(); return { ok: true };
   });
@@ -746,7 +885,7 @@ function registerIPC() {
   listen('account:select', (id) => {
     const a = accountById(id);
     if (a.workspaceId !== state.activeWorkspaceId) throw new Error(T('Conta fora deste espaço.'));
-    state.selectedAccountId = id; requestAccountFocus(); publish(); return { ok: true };
+    selectAccountState(id); requestAccountFocus(); publish(); return { ok: true };
   });
   listen('account:rename', (id, name) => {
     const a = accountById(id), next = safeString(name, 55);
@@ -840,7 +979,7 @@ function registerIPC() {
   });
   listen('menu:layout', point => {
     const workspace = state.workspaces.find(w => w.id === state.activeWorkspaceId);
-    popupMenu(Object.entries({ auto: T('Grade automática'), columns: T('Colunas'), rows: T('Linhas'), focus: T('Uma conta por vez') }).map(([layout, label]) => ({ label, type: 'radio', checked: workspace.layout === layout, click: () => runAction('workspace:layout', layout) })), point);
+    popupMenu(Object.entries({ auto: T('Grade automática'), columns: T('Colunas'), rows: T('Linhas'), focus: T('Uma conta por vez'), floating: T('Flutuante') }).map(([layout, label]) => ({ label, type: 'radio', checked: workspace.layout === layout, click: () => runAction('workspace:layout', layout) })), point);
     return { ok: true };
   });
   listen('menu:app', point => { showAppMenu(point); return { ok: true }; });
@@ -950,6 +1089,7 @@ function createMainWindow() {
     closeApplication();
   });
   windowMain.on('closed', () => {
+    closeFloatingView(); floatingFrame=undefined;
     const contents = interfaceView?.webContents;
     clearTimeout(metricsTimer); metricsTimer = undefined;
     for (const id of [...views.keys()]) destroyView(id);
