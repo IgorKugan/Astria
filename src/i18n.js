@@ -7,6 +7,7 @@
   else root.AstriaI18n = api;
 })(typeof window === 'object' ? window : globalThis, () => {
   const strings = {
+    'Contas flutuantes…':'Floating accounts…','Escolher contas flutuantes':'Choose floating accounts','Marque uma ou mais contas para aparecerem sobre a conta principal. Cada janela tem seu próprio tamanho, posição e alfinete.':'Select one or more accounts to appear above the main account. Each window has its own size, position and pin.','Seleção de contas inválida.':'Invalid account selection.','Aplicar':'Apply',
     'Clique para trocar.':'Click to swap.','Diminuir janela':'Make window smaller','Aumentar janela':'Make window larger','Redimensionar · arraste ou use as setas':'Resize · drag or use arrow keys','Fixar janela':'Pin window','Desafixar janela':'Unpin window','Tamanho inválido.':'Invalid size.',
     'Flutuante':'Floating', 'Clique para trocar. Arraste para mover.':'Click to swap. Drag to move.', 'Mover para outro canto':'Move to next corner', 'Trocar com conta flutuante · setas para mover':'Swap with floating account · arrow keys to move', 'Posição inválida.':'Invalid position.',
 

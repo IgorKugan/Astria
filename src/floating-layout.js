@@ -7,14 +7,28 @@ function floatingPosition(value) {
   if(typeof value?.accountId==='string'&&/^[a-zA-Z0-9-]{1,80}$/.test(value.accountId))position.accountId=value.accountId;
   return position;
 }
-function floatingAccount(state) {
+function floatingPositions(value) {
+  if(Array.isArray(value))return value.slice(0,299).map(floatingPosition);
+  if(value&&typeof value==='object')return [floatingPosition(value)];
+}
+function floatingDefault(index) {
+  const layer=Math.floor(index/4),inset=.4*layer/(layer+1);
+  return {x:index%2?inset:1-inset,y:index%4<2?1-inset:inset};
+}
+function floatingAccounts(state) {
   const workspace=state.workspaces.find(w=>w.id===state.activeWorkspaceId);
-  if(workspace?.layout!=='floating')return;
+  if(workspace?.layout!=='floating')return [];
   const accounts=state.accounts.filter(a=>a.workspaceId===workspace.id);
   const primary=accounts.find(a=>a.id===state.selectedAccountId)||accounts[0];
   const available=accounts.filter(a=>a.id!==primary?.id&&a.activity!=='suspended');
-  return available.find(a=>a.id===workspace.floating?.accountId)||available[0];
+  const used=new Set();
+  return (floatingPositions(workspace.floating)||[{}]).flatMap((position,index)=>{
+    const account=(position.accountId?available.find(a=>a.id===position.accountId):available.find(a=>!used.has(a.id)))||(!Array.isArray(workspace.floating)?available[0]:undefined);
+    if(!account||used.has(account.id))return [];
+    used.add(account.id);return [{account,position,index}];
+  });
 }
+const floatingAccount=state=>floatingAccounts(state)[0]?.account;
 function floatingBounds(area,size,position) {
   if(area.width<280||area.height<180)return null;
   const requested=Number.isFinite(position?.width)&&position.width>0?Math.max(180,area.width*position.width):Math.min(360,Math.max(220,area.width*.28));
@@ -26,4 +40,4 @@ function floatingBounds(area,size,position) {
 function positionAt(area,card,x,y) {
   return {x:unit((x-area.x-8)/Math.max(1,area.width-card.width-16),0),y:unit((y-area.y-8)/Math.max(1,area.height-card.height-16),0)};
 }
-module.exports={floatingPosition,floatingAccount,floatingBounds,positionAt};
+module.exports={floatingPosition,floatingPositions,floatingDefault,floatingAccount,floatingAccounts,floatingBounds,positionAt};

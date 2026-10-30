@@ -130,3 +130,4 @@ button:focus-visible,input:focus-visible {
 
 .panel-grid.floating{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr)}.floating-swap svg{width:14px;height:14px}
 @container(max-width:500px){.panel-grid.floating .panel-head .performance-button,.panel-grid.floating .panel-head .layout-button{display:none}}
+.floating-choices{max-height:min(48vh,360px);overflow-y:auto}.floating-choices .setting-row>span{min-width:0;overflow-wrap:anywhere}

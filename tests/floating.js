@@ -1,13 +1,19 @@
 'use strict';
 const assert=require('node:assert/strict');
-const {floatingPosition,floatingAccount,floatingBounds,positionAt}=require('../src/floating-layout');
+const {floatingPosition,floatingPositions,floatingDefault,floatingAccount,floatingAccounts,floatingBounds,positionAt}=require('../src/floating-layout');
 assert.deepEqual(floatingPosition({x:-2,y:Infinity,accountId:'bad/path'}),{x:0,y:1});
 assert.deepEqual(floatingPosition({width:2,pinned:true}),{x:1,y:1,width:1,pinned:true});
 assert.deepEqual(floatingPosition({width:NaN,pinned:'yes'}),{x:1,y:1});
+assert.equal(typeof floatingAccounts,'function','multiple floating account selection is supported');
+assert.deepEqual(floatingPositions({x:.2,y:.3,width:.4,pinned:true,accountId:'b'}),[{x:.2,y:.3,width:.4,pinned:true,accountId:'b'}],'single-window settings migrate');
 const state={activeWorkspaceId:'w',selectedAccountId:'a',workspaces:[{id:'w',layout:'floating',floating:{accountId:'c'}}],accounts:[{id:'a',workspaceId:'w'},{id:'b',workspaceId:'w',activity:'suspended'},{id:'c',workspaceId:'w'},{id:'d',workspaceId:'other'}]};
 assert.equal(floatingAccount(state).id,'c');state.accounts[2].activity='suspended';assert.equal(floatingAccount(state),undefined);
 state.accounts[1].activity='visible';assert.equal(floatingAccount(state).id,'b');state.workspaces[0].layout='focus';assert.equal(floatingAccount(state),undefined);
+state.workspaces[0].layout='floating';state.accounts[2].activity='always';state.workspaces[0].floating=[{accountId:'b',x:.2},{accountId:'c',pinned:true},{accountId:'b'},{accountId:'a'},{accountId:'d'}];
+assert.deepEqual(floatingAccounts(state).map(({account,index})=>[account.id,index]),[['b',0],['c',1]],'several selected accounts with unique slots and no primary or foreign account');
+state.workspaces[0].floating=[];assert.deepEqual(floatingAccounts(state),[],'explicitly choosing no floating accounts is preserved');
 const area={x:160,y:70,width:1000,height:600},size={width:1280,height:720};
+assert.equal(new Set(Array.from({length:8},(_,index)=>JSON.stringify(floatingBounds(area,size,floatingDefault(index))))).size,8,'default positions stagger beyond four windows');
 for(const position of [{x:0,y:0},{x:1,y:1},{x:.3,y:.8}]){
  const card=floatingBounds(area,size,position);assert.ok(card.x>=area.x+8&&card.y>=area.y+8);assert.ok(card.x+card.width<=area.x+area.width-8&&card.y+card.height<=area.y+area.height-8);
  const restored=positionAt(area,card,card.x,card.y);assert.ok(Math.abs(restored.x-position.x)<.005&&Math.abs(restored.y-position.y)<.005);

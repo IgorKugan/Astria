@@ -65,11 +65,13 @@ Unloading may disconnect a character. Offline progress depends on the game. Memo
 
 ### Floating layout
 
-Choose **Layout → Floating** in the panel toolbar or app menu. One account fills the main area and a live second account appears above it. Click the miniature to swap accounts; press and drag it to move without swapping. The corner button moves it to the next corner. The swap button in the main toolbar also works with Enter, and arrow keys move the miniature while that button is focused.
+Choose **Layout → Floating** in the panel toolbar or app menu, then select which accounts should float. You can select several secondary accounts, or leave all unchecked for just the main account. Open **Layout → Floating accounts…** or the account context menu to change this later.
 
-Drag the miniature's bottom-right grip to resize it while preserving the game's proportions. The **− / +** buttons change its size without dragging; focus the grip and use arrow keys for fine adjustments. The **pin** button locks movement and resizing while keeping click-to-swap available. Unpin to adjust it again. Its position, relative size and pin setting are saved per workspace.
+Click a miniature to swap that account with the main account; the other floating windows stay in place. Press and drag to move it without swapping. Drag its bottom-right grip to resize while preserving the game's proportions. The **− / +** buttons change its size without dragging; focus the grip and use arrow keys for fine adjustments. The **pin** button locks movement and resizing while keeping click-to-swap available. Unpin to adjust it again. Each window's position, relative size and pin setting are saved per workspace. The corner button moves it to the next corner. The main toolbar's swap button and arrow keys operate the first floating window.
 
-Selecting another account in the sidebar puts the previous main account in the miniature. Both pages keep their existing sessions and activity modes; no screenshot polling or duplicate game instance is used. The miniature stays inside the visible game when resizing or using a fixed resolution. With only one available account, it remains a normal full-size panel. Explicitly suspended accounts are excluded from the miniature. Dialogs and other workspaces hide it. In Ultra fullscreen the pair still swaps; the miniature follows Ultra's existing secondary-account frame limit.
+Selecting another account in the sidebar puts the previous main account in that account's floating slot, or the first slot if it was not floating. Pages keep their existing sessions and activity modes; no screenshot polling or duplicate game instance is used. Windows stay inside the visible game when resizing or using a fixed resolution. Suspended accounts do not show until resumed. Dialogs and other workspaces hide the windows. In Ultra fullscreen, floating windows still swap and follow Ultra's existing secondary-account frame limit.
+
+Left-clicking an account's color selects the account, including with the sidebar collapsed. To customize its color, right-click the account and choose **Choose color…**.
 
 ## Portable data
 

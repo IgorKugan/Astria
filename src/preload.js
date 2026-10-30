@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('multiNest', Object.freeze({
   layoutMenu: point => invoke('menu:layout', point),
   floatingSwap: () => invoke('floating:swap'),
   floatingStep: (x,y) => invoke('floating:step',x,y),
+  floatingAccounts: ids => invoke('floating:accounts',ids),
   reload: id => invoke('view:reload', id),
   home: id => invoke('view:home', id),
   mute: id => invoke('view:mute', id),

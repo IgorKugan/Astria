@@ -65,11 +65,13 @@ Descarregar pode desconectar o personagem. A progressão offline depende do jogo
 
 ### Layout flutuante
 
-Escolha **Layout → Flutuante** na barra do painel ou no menu do aplicativo. Uma conta ocupa a área principal e uma segunda conta aparece ao vivo por cima. Clique na pequena para trocar as contas; clique e arraste para movê-la sem trocar. O botão de canto move para o próximo canto. O botão de troca na barra principal também funciona com Enter, e as setas movem a janela enquanto esse botão está focado.
+Escolha **Layout → Flutuante** na barra do painel ou no menu do aplicativo e marque quais contas ficarão flutuando. É possível selecionar várias secundárias ou deixar todas desmarcadas para mostrar apenas a principal. Abra **Layout → Contas flutuantes…** ou o menu do botão direito da conta para mudar a seleção depois.
 
-Arraste o canto inferior direito da pequena para redimensionar mantendo as proporções do jogo. Os botões **− / +** ajustam o tamanho sem arrastar; foque o controle do canto e use as setas para ajustes finos. O botão de **alfinete** bloqueia movimento e redimensionamento, mantendo o clique para trocar as contas. Desafixe para ajustar novamente. Posição, tamanho relativo e estado fixado são salvos por espaço.
+Clique em uma pequena para trocar aquela conta com a principal; as outras flutuantes permanecem no lugar. Segure e arraste para mover sem trocar. Arraste o canto inferior direito para redimensionar mantendo as proporções do jogo. Os botões **− / +** ajustam sem arrastar; foque o controle do canto e use as setas para ajustes finos. O **alfinete** bloqueia movimento e redimensionamento, mantendo o clique para trocar. Cada janela salva sua posição, tamanho relativo e estado fixado por espaço. O botão de canto move para o próximo canto. O botão de troca e as setas na barra principal controlam a primeira flutuante.
 
-Ao escolher outra conta na lateral, a anterior fica na janela pequena. As duas páginas mantêm suas sessões e modos de atividade, sem capturas periódicas de tela nem uma segunda instância do jogo. A pequena fica dentro da imagem do jogo ao redimensionar ou usar resolução fixa. Com uma única conta disponível, ela continua em tamanho normal. Contas suspensas são excluídas da janela pequena. Diálogos e outros espaços ocultam a janela. No Ultra em tela cheia as contas continuam trocando; a pequena segue o limite de quadros que o Ultra já aplica às contas secundárias.
+Ao escolher outra conta na lateral, a anterior ocupa a janela daquela conta, ou a primeira flutuante caso ela não estivesse flutuando. As páginas mantêm suas sessões e modos de atividade, sem capturas periódicas de tela nem outra instância do jogo. As janelas ficam dentro da imagem do jogo ao redimensionar ou usar resolução fixa. Contas suspensas reaparecem ao retomar. Diálogos e outros espaços ocultam as janelas. No Ultra em tela cheia as flutuantes continuam trocando e seguem o limite de quadros que o Ultra já aplica às secundárias.
+
+O clique esquerdo na cor seleciona a conta, inclusive com a lateral recolhida. Para personalizar a cor, clique com o botão direito na conta e escolha **Escolher cor…**.
 
 ## Dados portáteis
 

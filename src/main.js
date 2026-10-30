@@ -10,7 +10,7 @@ const { planViewLoads } = require('./view-loads');
 const { closePage } = require('./view-close');
 const { frameBudget, resolutions, resolutionBounds } = require('./performance');
 const { collectPageMemory } = require('./memory-cleanup');
-const { floatingPosition, floatingAccount, floatingBounds, positionAt } = require('./floating-layout');
+const { floatingPosition, floatingPositions, floatingDefault, floatingAccounts, floatingBounds, positionAt } = require('./floating-layout');
 const { configureStorage, writeAccountGuide } = require('./storage');
 const { Updates } = require('./updates');
 const releaseConfig = require('./release-config.json');
@@ -35,7 +35,8 @@ if (process.env.ASTRIA_SAFE_GPU !== '1') {
 
 let windowMain;
 let interfaceView;
-let floatingView, floatingFrame, floatingDrag;
+const floatingViews=new Map(),floatingFrames=new Map();
+let floatingDrag;
 let state;
 const I18n = require('./i18n');
 const T = (value, ...values) => typeof value === 'string' ? I18n.translate(value, state?.preferences.language || 'en') : I18n.tag(value, values, state?.preferences.language || 'en');
@@ -118,12 +119,14 @@ function normalizeImport(json) {
     throw new Error(T('Arquivo de configuração inválido.'));
   }
   const used = new Set();
+  const legacyFloating=new Map();
   const workspaces = [];
   for (const w of json.workspaces.slice(0, 100)) {
     if (!w || typeof w !== 'object') continue;
     const id = hasId(w.id) && !used.has(w.id) ? w.id : randomUUID();
     used.add(id);
-    workspaces.push({ id, name: safeString(w.name, 55) || T('Espaço'), layout: allowedLayouts.has(w.layout) ? w.layout : 'auto', ...(w.floating ? {floating:floatingPosition(w.floating)} : {}) });
+    if(w.floating&&typeof w.floating==='object'&&!Array.isArray(w.floating))legacyFloating.set(id,w.floating);
+    workspaces.push({ id, name: safeString(w.name, 55) || T('Espaço'), layout: allowedLayouts.has(w.layout) ? w.layout : 'auto', ...(w.floating ? {floating:floatingPositions(w.floating)} : {}) });
   }
   if (!workspaces.length) workspaces.push({ id: randomUUID(), name: T('Meus jogos'), layout: 'auto' });
   const wIds = new Set(workspaces.map(w => w.id));
@@ -136,6 +139,10 @@ function normalizeImport(json) {
       used.add(id);
       accounts.push({ id, workspaceId: a.workspaceId, name: safeString(a.name, 55) || T('Conta'), url: safeURL(a.url), muted: !!a.muted, zoom: Math.max(0.5, Math.min(2, Number(a.zoom) || 1)), color: normalizeColor(a.color) || colors.mint, activity: modeFor(a), ecoFPS: ecoFPS(a), resolution: Object.hasOwn(resolutions, a.resolution) ? a.resolution : 'auto' });
     } catch { /* skip malformed or unsupported entry */ }
+  }
+  for(const workspace of workspaces)if(legacyFloating.has(workspace.id)){
+    const [entry]=floatingAccounts({workspaces:[{...workspace,layout:'floating',floating:legacyFloating.get(workspace.id)}],accounts,activeWorkspaceId:workspace.id,selectedAccountId:json.selectedAccountId});
+    if(entry)workspace.floating=[{...entry.position,accountId:entry.account.id}];
   }
   return {
     version: 1,
@@ -170,6 +177,13 @@ function persistState() {
 
 function currentAccounts() {
   return state.accounts.filter(a => a.workspaceId === state.activeWorkspaceId);
+}
+
+function selectDefaultAccount() {
+  const workspace=state.workspaces.find(w=>w.id===state.activeWorkspaceId),accounts=currentAccounts();
+  const floating=new Set(workspace.layout==='floating'?(floatingPositions(workspace.floating)||[]).map(p=>p.accountId):[]);
+  state.selectedAccountId=(accounts.find(a=>!floating.has(a.id))||accounts[0])?.id||null;
+  if(workspace.layout==='floating'&&Array.isArray(workspace.floating))workspace.floating=workspace.floating.filter(p=>p.accountId!==state.selectedAccountId);
 }
 
 function publish() {
@@ -438,7 +452,8 @@ function refreshViews() {
   if (quitting || !windowMain || windowMain.isDestroyed()) return;
   updateFloatingFrame();
   const windowVisible = windowMain.isVisible() && !windowMain.isMinimized();
-  const visible = new Set(windowVisible ? currentAccounts().filter(a => boundsForAccounts.has(a.id) && (!state.ultraAccountId || state.ultraAccountId === a.id || floatingFrame?.accountId === a.id)).map(a => a.id) : []);
+  const floatingByAccount=new Map([...floatingFrames.values()].map(frame=>[frame.accountId,frame]));
+  const visible = new Set(windowVisible ? currentAccounts().filter(a => boundsForAccounts.has(a.id) && (!state.ultraAccountId || state.ultraAccountId === a.id || floatingByAccount.has(a.id))).map(a => a.id) : []);
   // Release slots belonging to accounts that were suspended before this pass.
   for (const account of state.accounts) if (modeFor(account) === 'suspended') destroyView(account.id, true);
   const starts = planViewLoads(state.accounts, {
@@ -454,11 +469,11 @@ function refreshViews() {
   for (const account of state.accounts) {
     const view = views.get(account.id);
     if (!view) continue;
-    const floatingSize = floatingFrame?.accountId === account.id ? floatingFrame.viewport : undefined;
+    const frame=floatingByAccount.get(account.id),floatingSize=frame?.viewport;
     if (floatingSize || view.floatingViewport) {
       const panel = boundsForAccounts.get(account.id) || view.floatingArea || view.panelBounds;
       view.floatingViewport = floatingSize;
-      if (floatingSize) view.floatingArea = floatingFrame.area;
+      if (floatingSize) view.floatingArea = frame.area;
       if (panel) applyResolution(view,account,panel);
     }
     const throttled = !(backgroundMode(modeFor(account)) || state.preferences.visualRest || state.ultraAccountId) || !windowVisible;
@@ -526,115 +541,123 @@ function visibleViews() {
 }
 
 function updateFloatingFrame() {
-  if (floatingFrame && boundsForAccounts.get(floatingFrame.accountId) === floatingFrame.body) boundsForAccounts.delete(floatingFrame.accountId);
-  floatingFrame = undefined;
-  const secondary = floatingAccount(state);
-  const primary = currentAccounts().find(a=>a.id===state.selectedAccountId) || currentAccounts()[0];
-  const slot = primary && boundsForAccounts.get(primary.id);
-  const area = slot && (resolutionBounds(primary.resolution,slot) || slot);
-  if (!secondary || !area) return;
-  const viewport = resolutions[secondary.resolution] || {width:Math.round(area.width/(secondary.zoom||1)),height:Math.round(area.height/(secondary.zoom||1))};
-  const workspace = state.workspaces.find(w=>w.id===state.activeWorkspaceId);
-  const card = floatingBounds(area,viewport,workspace.floating);
-  if (!card) return;
-  const body = {x:card.x+2,y:card.y+26,width:card.width-4,height:card.height-28};
-  floatingFrame = {accountId:secondary.id,primaryId:primary.id,workspaceId:workspace.id,slot,area,viewport,card,body};
-  boundsForAccounts.set(secondary.id,body);
-}
-
-function closeFloatingView() {
-  floatingDrag = undefined;
-  if (!floatingView) return;
-  const contents = floatingView.webContents;
-  if (windowMain && !windowMain.isDestroyed() && windowMain.contentView.children.includes(floatingView)) windowMain.contentView.removeChildView(floatingView);
-  floatingView = undefined;
-  if (!contents.isDestroyed()) contents.close();
-}
-
-function sendFloatingState() {
-  if (!floatingView || floatingView.webContents.isDestroyed() || !floatingFrame) return;
-  const a = accountById(floatingFrame.accountId);
+  for(const frame of floatingFrames.values())if(boundsForAccounts.get(frame.accountId)===frame.body)boundsForAccounts.delete(frame.accountId);
+  floatingFrames.clear();
+  const entries=floatingAccounts(state);
+  const primary=currentAccounts().find(a=>a.id===state.selectedAccountId)||currentAccounts()[0];
+  const slot=primary&&boundsForAccounts.get(primary.id);
+  const area=slot&&(resolutionBounds(primary.resolution,slot)||slot);
+  if(!entries.length||!area)return;
   const workspace=state.workspaces.find(w=>w.id===state.activeWorkspaceId);
-  const value = {name:a.name,color:a.color,theme:state.preferences.theme,language:state.preferences.language,ready:!!views.get(a.id)?.onScreen,pinned:!!workspace.floating?.pinned};
-  const key = JSON.stringify(value);
-  if (floatingView.stateKey !== key) {floatingView.stateKey=key;floatingView.webContents.send('floating:state',value);}
+  if(!Array.isArray(workspace.floating))workspace.floating=entries.map(({account,position})=>({...position,accountId:account.id}));
+  for(const {account:secondary,position,index} of entries){
+    const viewport=resolutions[secondary.resolution]||{width:Math.round(area.width/(secondary.zoom||1)),height:Math.round(area.height/(secondary.zoom||1))};
+    const card=floatingBounds(area,viewport,position);
+    if(!card)continue;
+    workspace.floating[index]={...position,accountId:secondary.id};
+    const body={x:card.x+2,y:card.y+26,width:card.width-4,height:card.height-28};
+    floatingFrames.set(index,{accountId:secondary.id,primaryId:primary.id,workspaceId:workspace.id,slot,area,viewport,card,body});
+    boundsForAccounts.set(secondary.id,body);
+  }
+}
+
+function closeFloatingView(index) {
+  for(const key of index===undefined?[...floatingViews.keys()]:[index]){
+    if(floatingDrag?.index===key)floatingDrag=undefined;
+    const chrome=floatingViews.get(key);if(!chrome)continue;
+    if(windowMain&&!windowMain.isDestroyed()&&windowMain.contentView.children.includes(chrome))windowMain.contentView.removeChildView(chrome);
+    floatingViews.delete(key);
+    if(!chrome.webContents.isDestroyed())chrome.webContents.close();
+  }
+}
+
+function sendFloatingState(index) {
+  const chrome=floatingViews.get(index),frame=floatingFrames.get(index);
+  if(!chrome||chrome.webContents.isDestroyed()||!frame)return;
+  const a=accountById(frame.accountId),workspace=state.workspaces.find(w=>w.id===state.activeWorkspaceId);
+  const value={name:a.name,color:a.color,theme:state.preferences.theme,language:state.preferences.language,ready:!!views.get(a.id)?.onScreen,pinned:!!workspace.floating[index]?.pinned};
+  const key=JSON.stringify(value);
+  if(chrome.stateKey!==key){chrome.stateKey=key;chrome.webContents.send('floating:state',value);}
 }
 
 function raiseFloating(view) {
-  if (windowMain.contentView.children.at(-1) === view) return;
-  if (windowMain.contentView.children.includes(view)) windowMain.contentView.removeChildView(view);
+  if(windowMain.contentView.children.at(-1)===view)return;
+  if(windowMain.contentView.children.includes(view))windowMain.contentView.removeChildView(view);
   windowMain.contentView.addChildView(view);
 }
 
 function refreshFloatingView() {
-  if (!floatingAccount(state)) {closeFloatingView();return;}
-  const show = !!floatingFrame && !overlayOpen && windowMain.isVisible() && !windowMain.isMinimized();
-  if (!show) {
-    floatingDrag = undefined;
-    if (floatingView) {
-      floatingView.setVisible(false);
-      if (windowMain.contentView.children.includes(floatingView)) windowMain.contentView.removeChildView(floatingView);
+  const eligible=new Set(floatingAccounts(state).map(entry=>entry.index));
+  for(const [index,chrome] of [...floatingViews])if(!eligible.has(index)||chrome.workspaceId!==state.activeWorkspaceId)closeFloatingView(index);
+  const stack=[];
+  for(const index of eligible){
+    const frame=floatingFrames.get(index);
+    const show=!!frame&&!overlayOpen&&windowMain.isVisible()&&!windowMain.isMinimized();
+    let chrome=floatingViews.get(index);
+    if(!show){
+      if(floatingDrag?.index===index)floatingDrag=undefined;
+      if(chrome){chrome.setVisible(false);if(windowMain.contentView.children.includes(chrome))windowMain.contentView.removeChildView(chrome);}
+      continue;
     }
-    return;
+    if(!chrome){
+      chrome=new WebContentsView({webPreferences:{preload:path.join(__dirname,'floating-preload.js'),nodeIntegration:false,contextIsolation:true,sandbox:true,spellcheck:false}});
+      chrome.workspaceId=state.activeWorkspaceId;floatingViews.set(index,chrome);chrome.setBackgroundColor('#00000000');
+      chrome.webContents.setWindowOpenHandler(()=>({action:'deny'}));
+      chrome.webContents.on('will-navigate',event=>event.preventDefault());
+      const control=chrome;
+      chrome.webContents.once('did-finish-load',()=>{if(floatingViews.get(index)===control){control.stateKey=undefined;sendFloatingState(index);}});
+      chrome.webContents.loadFile(path.join(__dirname,'floating.html'));
+    }
+    chrome.setBounds(frame.card);chrome.setVisible(true);
+    const game=views.get(frame.accountId);
+    if(game?.onScreen)stack.push(game);
+    stack.push(chrome);sendFloatingState(index);
   }
-  if (!floatingView) {
-    const chrome = new WebContentsView({webPreferences:{preload:path.join(__dirname,'floating-preload.js'),nodeIntegration:false,contextIsolation:true,sandbox:true,spellcheck:false}});
-    floatingView = chrome;
-    chrome.setBackgroundColor('#00000000');
-    chrome.webContents.setWindowOpenHandler(()=>({action:'deny'}));
-    chrome.webContents.on('will-navigate',event=>event.preventDefault());
-    chrome.webContents.once('did-finish-load',()=>{if(floatingView===chrome){chrome.stateKey=undefined;sendFloatingState();}});
-    chrome.webContents.loadFile(path.join(__dirname,'floating.html'));
-  }
-  floatingView.setBounds(floatingFrame.card);
-  floatingView.setVisible(true);
-  const game = views.get(floatingFrame.accountId);
-  // Keep the miniature above the main native game without reparenting during drag.
-  const children = windowMain.contentView.children;
-  if (game?.onScreen && children.indexOf(game) !== children.length-(children.includes(floatingView)?2:1)) raiseFloating(game);
-  raiseFloating(floatingView);
-  sendFloatingState();
+  // Preserve each game's native surface immediately below its transparent controls.
+  const tail=windowMain.contentView.children.slice(-stack.length);
+  if(stack.some((view,index)=>tail[index]!==view))for(const view of stack)raiseFloating(view);
 }
 
-function floatingSender(event) {
-  return !!floatingView && !floatingView.webContents.isDestroyed() && event.sender===floatingView.webContents && event.senderFrame===floatingView.webContents.mainFrame && isInterfaceURL(event.senderFrame?.url,path.join(__dirname,'floating.html'));
+function floatingIndex(event) {
+  for(const [index,chrome] of floatingViews)if(!chrome.webContents.isDestroyed()&&event.sender===chrome.webContents&&event.senderFrame===chrome.webContents.mainFrame&&isInterfaceURL(event.senderFrame?.url,path.join(__dirname,'floating.html')))return index;
 }
 
-function swapFloating() {
-  if (!floatingFrame || overlayOpen || !windowMain.isVisible() || windowMain.isMinimized()) return {ok:false};
-  const {accountId,primaryId,slot} = floatingFrame;
-  const workspace=state.workspaces.find(w=>w.id===state.activeWorkspaceId);
-  workspace.floating={...floatingPosition(workspace.floating),accountId:primaryId};
+function swapFloating(index) {
+  const frame=floatingFrames.get(index);
+  if(!frame||overlayOpen||!windowMain.isVisible()||windowMain.isMinimized())return {ok:false};
+  const {accountId,primaryId,slot}=frame,workspace=state.workspaces.find(w=>w.id===state.activeWorkspaceId);
+  workspace.floating[index]={...floatingPosition(workspace.floating[index]),accountId:primaryId};
   state.selectedAccountId=accountId;
   if(state.ultraAccountId)state.ultraAccountId=accountId;
-  floatingDrag=undefined;
-  boundsForAccounts.set(accountId,slot);
+  floatingDrag=undefined;boundsForAccounts.set(accountId,slot);
   requestAccountFocus();publish();return {ok:true};
 }
 
-function moveFloating(x,y) {
-  if (!floatingFrame || overlayOpen) return;
-  const workspace=state.workspaces.find(w=>w.id===state.activeWorkspaceId);
-  if(workspace.floating?.pinned)return;
-  workspace.floating={...floatingPosition(workspace.floating),accountId:floatingFrame.accountId,...positionAt(floatingFrame.area,floatingFrame.card,x,y)};
+function moveFloating(index,x,y) {
+  const frame=floatingFrames.get(index),workspace=state.workspaces.find(w=>w.id===state.activeWorkspaceId);
+  if(!frame||overlayOpen||workspace.floating[index]?.pinned)return;
+  workspace.floating[index]={...floatingPosition(workspace.floating[index]),accountId:frame.accountId,...positionAt(frame.area,frame.card,x,y)};
   refreshViews();
 }
 
-function resizeFloating(width,origin=floatingFrame?.card) {
-  if(!floatingFrame||overlayOpen)return;
-  const workspace=state.workspaces.find(w=>w.id===state.activeWorkspaceId);
-  if(workspace.floating?.pinned)return;
-  const {area,viewport}=floatingFrame;
-  const position={...floatingPosition(workspace.floating),width:Math.max(180,width)/area.width};
+function resizeFloating(index,width,origin=floatingFrames.get(index)?.card) {
+  const frame=floatingFrames.get(index),workspace=state.workspaces.find(w=>w.id===state.activeWorkspaceId);
+  if(!frame||overlayOpen||workspace.floating[index]?.pinned)return;
+  const {area,viewport}=frame;
+  const position={...floatingPosition(workspace.floating[index]),width:Math.max(180,width)/area.width};
   const card=floatingBounds(area,viewport,position);
-  workspace.floating={...position,width:card.width/area.width,accountId:floatingFrame.accountId,...positionAt(area,card,origin.x,origin.y)};
+  workspace.floating[index]={...position,width:card.width/area.width,accountId:frame.accountId,...positionAt(area,card,origin.x,origin.y)};
   refreshViews();
 }
 
 function selectAccountState(id) {
   const workspace=state.workspaces.find(w=>w.id===state.activeWorkspaceId);
-  if(workspace.layout==='floating' && state.selectedAccountId!==id && currentAccounts().some(a=>a.id===state.selectedAccountId)) {
-    workspace.floating={...floatingPosition(workspace.floating),accountId:state.selectedAccountId};
+  if(workspace.layout==='floating'&&state.selectedAccountId!==id&&currentAccounts().some(a=>a.id===state.selectedAccountId)){
+    const entries=floatingAccounts(state),target=entries.find(entry=>entry.account.id===id)||entries[0];
+    if(target){
+      if(!Array.isArray(workspace.floating))workspace.floating=entries.map(({account,position})=>({...position,accountId:account.id}));
+      workspace.floating[target.index]={...target.position,accountId:state.selectedAccountId};
+    }
   }
   state.selectedAccountId=id;
 }
@@ -695,9 +718,14 @@ function uiCommand(type, id) {
 }
 
 function runAction(name, ...args) {
-  Promise.resolve().then(() => actions.get(name)(...args)).catch(error => {
+  return Promise.resolve().then(() => actions.get(name)(...args)).catch(error => {
     if (windowMain && !windowMain.isDestroyed()) windowMain.webContents.send('ui:toast', error.message);
   });
+}
+
+function layoutMenuItems(workspace) {
+  const items=Object.entries({auto:T('Grade automática'),columns:T('Colunas'),rows:T('Linhas'),focus:T('Uma conta por vez'),floating:T('Flutuante')}).map(([layout,label])=>({label,type:'radio',checked:workspace.layout===layout,click:()=>runAction('workspace:layout',layout).then(result=>{if(result?.ok&&layout==='floating')uiCommand('floating-accounts');})}));
+  return [...items,{type:'separator'},{label:T('Contas flutuantes…'),enabled:currentAccounts().length>1,click:()=>uiCommand('floating-accounts')}];
 }
 
 function popupMenu(template, point) {
@@ -716,6 +744,7 @@ function showAccountMenu(id, point, params) {
     { label: a.name, enabled: false },
     { label: T('Renomear conta…'), click: () => uiCommand('rename-account', id) },
     { label: T('Escolher cor…'), click: () => uiCommand('account-color', id) },
+    { label: T('Contas flutuantes…'), enabled:currentAccounts().length>1, click:()=>uiCommand('floating-accounts') },
     { type: 'separator' },
     { label: T('Atividade'), submenu: [
       { label: T('Sempre ativa · desempenho máximo'), type: 'radio', checked: modeFor(a) === 'always', click: () => runAction('account:activity', id, 'always') },
@@ -762,7 +791,7 @@ function showAppMenu(point) {
     { label: T('Novo espaço…'), click: () => uiCommand('add-workspace') },
     { label: T('Editar espaço…'), click: () => uiCommand('edit-workspace') },
     { type: 'separator' },
-    { label: 'Layout', submenu: Object.entries({ auto: T('Grade automática'), columns: T('Colunas'), rows: T('Linhas'), focus: T('Uma conta por vez'), floating: T('Flutuante') }).map(([layout, label]) => ({ label, type: 'radio', checked: workspace.layout === layout, click: () => runAction('workspace:layout', layout) })) },
+    { label: 'Layout', submenu: layoutMenuItems(workspace) },
     { type: 'separator' },
     { label: T('Exportar configuração…'), click: () => runAction('config:export') },
     { label: T('Importar configuração…'), click: () => uiCommand('import') },
@@ -785,48 +814,74 @@ function showAppMenu(point) {
 }
 
 function registerIPC() {
-  const floatingControl = event=>trustedSender(event)||floatingSender(event);
-  listen('floating:swap',swapFloating,floatingControl);
-  listen('floating:corner',()=>{
-    if(!floatingFrame)return {ok:false};
-    const w=state.workspaces.find(w=>w.id===state.activeWorkspaceId),p=floatingPosition(w.floating);
+  function control(name,fn,allowRoot=false){
+    ipcMain.handle('floating:'+name,async(event,...args)=>{
+      try{
+        let index=floatingIndex(event);
+        if(index===undefined&&allowRoot&&trustedSender(event)){index=floatingFrames.keys().next().value;if(index===undefined)return {ok:false};}
+        if(index===undefined)throw new Error(T('Origem não autorizada.'));
+        return await fn(index,...args);
+      }catch(error){return {ok:false,error:T(error.message||String(error))};}
+    });
+  }
+  listen('floating:accounts',ids=>{
+    const workspace=state.workspaces.find(w=>w.id===state.activeWorkspaceId);
+    const available=currentAccounts().filter(a=>a.id!==state.selectedAccountId&&modeFor(a)!=='suspended');
+    if(!Array.isArray(ids)||ids.length>299||new Set(ids).size!==ids.length||ids.some(id=>!hasId(id)||!available.some(a=>a.id===id)))throw new Error(T('Seleção de contas inválida.'));
+    const kept=(floatingPositions(workspace.floating)||[]).filter((p,index,all)=>ids.includes(p.accountId)&&all.findIndex(other=>other.accountId===p.accountId)===index);
+    const existing=new Set(kept.map(p=>p.accountId));
+    for(const id of ids)if(!existing.has(id)){
+      let index=0,position;
+      do{position=floatingDefault(index++);}while(kept.some(p=>p.x===position.x&&p.y===position.y));
+      kept.push({accountId:id,...position});existing.add(id);
+    }
+    workspace.floating=kept;
+    if(workspace.layout!=='floating'){workspace.layout='floating';boundsForAccounts.clear();}
+    floatingDrag=undefined;publish();return {ok:true};
+  });
+  control('swap',swapFloating,true);
+  control('corner',index=>{
+    const frame=floatingFrames.get(index);if(!frame)return {ok:false};
+    const w=state.workspaces.find(w=>w.id===state.activeWorkspaceId),p=floatingPosition(w.floating[index]);
     if(p.pinned)return {ok:false};
     const next=p.x>=.5?(p.y>=.5?{x:0,y:1}:{x:1,y:1}):(p.y>=.5?{x:0,y:0}:{x:1,y:0});
-    w.floating={...p,accountId:floatingFrame.accountId,...next};refreshViews();persistState();return {ok:true};
-  },floatingControl);
-  listen('floating:step',(x,y)=>{
+    w.floating[index]={...p,accountId:frame.accountId,...next};refreshViews();persistState();return {ok:true};
+  });
+  control('step',(index,x,y)=>{
     if(!Number.isFinite(x)||!Number.isFinite(y))throw new Error(T('Posição inválida.'));
-    if(!floatingFrame)return {ok:false};
-    moveFloating(floatingFrame.card.x+x,floatingFrame.card.y+y);persistState();return {ok:true};
-  },floatingControl);
-  listen('floating:resize-step',delta=>{
+    const frame=floatingFrames.get(index);if(!frame)return {ok:false};
+    moveFloating(index,frame.card.x+x,frame.card.y+y);persistState();return {ok:true};
+  },true);
+  control('resize-step',(index,delta)=>{
     if(!Number.isFinite(delta))throw new Error(T('Tamanho inválido.'));
-    if(!floatingFrame)return {ok:false};
-    resizeFloating(floatingFrame.card.width+delta);persistState();return {ok:true};
-  },floatingSender);
-  listen('floating:pin',()=>{
-    if(!floatingFrame||overlayOpen)return {ok:false};
-    const w=state.workspaces.find(w=>w.id===state.activeWorkspaceId);
-    w.floating={...floatingPosition(w.floating),pinned:!w.floating?.pinned};
+    const frame=floatingFrames.get(index);if(!frame)return {ok:false};
+    resizeFloating(index,frame.card.width+delta);persistState();return {ok:true};
+  });
+  control('pin',index=>{
+    if(!floatingFrames.has(index)||overlayOpen)return {ok:false};
+    const w=state.workspaces.find(w=>w.id===state.activeWorkspaceId),p=floatingPosition(w.floating[index]);
+    w.floating[index]={...p,pinned:!p.pinned};
     floatingDrag=undefined;refreshViews();persistState();return {ok:true};
-  },floatingSender);
+  });
   ipcMain.on('floating:drag-start',(event,mode='move')=>{
-    if(!floatingSender(event)||!floatingFrame||overlayOpen||!floatingView.getVisible())return;
+    const index=floatingIndex(event),frame=floatingFrames.get(index);
+    if(!frame||overlayOpen||!floatingViews.get(index)?.getVisible())return;
     const workspace=state.workspaces.find(w=>w.id===state.activeWorkspaceId);
-    if(workspace.floating?.pinned||!['move','resize'].includes(mode))return;
-    floatingDrag={mode,accountId:floatingFrame.accountId,workspaceId:state.activeWorkspaceId,card:{...floatingFrame.card}};
+    if(workspace.floating[index]?.pinned||!['move','resize'].includes(mode))return;
+    floatingDrag={index,mode,accountId:frame.accountId,workspaceId:state.activeWorkspaceId,card:{...frame.card}};
   });
   ipcMain.on('floating:drag-move',(event,x,y)=>{
-    if(!floatingSender(event)||!floatingDrag||floatingDrag.accountId!==floatingFrame?.accountId||floatingDrag.workspaceId!==state.activeWorkspaceId||!Number.isFinite(x)||!Number.isFinite(y))return;
+    const index=floatingIndex(event),frame=floatingFrames.get(index);
+    if(index===undefined||!floatingDrag||floatingDrag.index!==index||floatingDrag.accountId!==frame?.accountId||floatingDrag.workspaceId!==state.activeWorkspaceId||!Number.isFinite(x)||!Number.isFinite(y))return;
     if(floatingDrag.mode==='resize'){
-      const vertical=y*floatingFrame.viewport.width/floatingFrame.viewport.height;
-      resizeFloating(floatingDrag.card.width+(Math.abs(x)>=Math.abs(vertical)?x:vertical),floatingDrag.card);
-    }else moveFloating(floatingDrag.card.x+x,floatingDrag.card.y+y);
+      const vertical=y*frame.viewport.width/frame.viewport.height;
+      resizeFloating(index,floatingDrag.card.width+(Math.abs(x)>=Math.abs(vertical)?x:vertical),floatingDrag.card);
+    }else moveFloating(index,floatingDrag.card.x+x,floatingDrag.card.y+y);
   });
   ipcMain.on('floating:drag-end',event=>{
-    if(!floatingSender(event)||!floatingDrag)return;
+    if(!floatingDrag||floatingIndex(event)!==floatingDrag.index)return;
     floatingDrag=undefined;
-    try {persistState();} catch(error) {windowMain.webContents.send('ui:toast',T(error.message));}
+    try{persistState();}catch(error){windowMain.webContents.send('ui:toast',T(error.message));}
     requestAccountFocus(state.selectedAccountId,false);focusRequestedAccount();
   });
   listen('settings:language', language => {
@@ -864,7 +919,7 @@ function registerIPC() {
   listen('workspace:select', (id) => {
     if (!state.workspaces.some(w => w.id === id)) throw new Error(T('Espaço não encontrado.'));
     state.activeWorkspaceId = id;
-    state.selectedAccountId = state.accounts.find(a => a.workspaceId === id)?.id || null;
+    selectDefaultAccount();
     requestAccountFocus();
     boundsForAccounts.clear(); publish(); return { ok: true };
   });
@@ -876,12 +931,13 @@ function registerIPC() {
     state.accounts = state.accounts.filter(a => a.workspaceId !== id);
     state.workspaces = state.workspaces.filter(w => w.id !== id);
     if (state.activeWorkspaceId === id) state.activeWorkspaceId = state.workspaces[0].id;
-    state.selectedAccountId = currentAccounts()[0]?.id || null;
+    selectDefaultAccount();
     boundsForAccounts.clear(); publish(); return { ok: true };
   });
   listen('workspace:layout', (layout) => {
     if (!allowedLayouts.has(layout)) throw new Error(T('Layout desconhecido.'));
-    state.workspaces.find(w => w.id === state.activeWorkspaceId).layout = layout;
+    const workspace=state.workspaces.find(w => w.id === state.activeWorkspaceId);workspace.layout = layout;
+    if(layout==='floating'&&workspace.floating?.some(p=>p.accountId===state.selectedAccountId))selectDefaultAccount();
     boundsForAccounts.clear(); publish(); return { ok: true };
   });
   listen('account:add', (data) => {
@@ -909,7 +965,7 @@ function registerIPC() {
   listen('account:delete', (id) => {
     accountById(id); destroyView(id);
     state.accounts = state.accounts.filter(a => a.id !== id);
-    if (state.selectedAccountId === id) state.selectedAccountId = currentAccounts()[0]?.id || null;
+    if (state.selectedAccountId === id) selectDefaultAccount();
     publish(); return { ok: true, note: T('Sessão salva no disco; dados do site não foram apagados.') };
   });
   listen('account:select', (id) => {
@@ -955,7 +1011,7 @@ function registerIPC() {
     const enabled = state.ultraAccountId !== id;
     if (enabled && modeFor(a) === 'suspended') throw new Error(T('Retome a conta suspensa primeiro.'));
     state.ultraAccountId = enabled ? id : null;
-    if (enabled) {state.activeWorkspaceId = a.workspaceId; state.selectedAccountId = id;}
+    if (enabled) {state.activeWorkspaceId = a.workspaceId; selectAccountState(id);}
     windowMain.setFullScreen(enabled);
     requestAccountFocus(); boundsForAccounts.clear(); publish(); return {ok:true};
   });
@@ -1009,7 +1065,7 @@ function registerIPC() {
   });
   listen('menu:layout', point => {
     const workspace = state.workspaces.find(w => w.id === state.activeWorkspaceId);
-    popupMenu(Object.entries({ auto: T('Grade automática'), columns: T('Colunas'), rows: T('Linhas'), focus: T('Uma conta por vez'), floating: T('Flutuante') }).map(([layout, label]) => ({ label, type: 'radio', checked: workspace.layout === layout, click: () => runAction('workspace:layout', layout) })), point);
+    popupMenu(layoutMenuItems(workspace), point);
     return { ok: true };
   });
   listen('menu:app', point => { showAppMenu(point); return { ok: true }; });
@@ -1119,7 +1175,7 @@ function createMainWindow() {
     closeApplication();
   });
   windowMain.on('closed', () => {
-    closeFloatingView(); floatingFrame=undefined;
+    closeFloatingView(); floatingFrames.clear();
     const contents = interfaceView?.webContents;
     clearTimeout(metricsTimer); metricsTimer = undefined;
     for (const id of [...views.keys()]) destroyView(id);

@@ -139,6 +139,11 @@ async function readStorage(id) {
   await page.locator('.panel .theme-toggle').first().click();
   await page.waitForFunction(()=>!document.documentElement.classList.contains('light'));
   const firstLink=page.locator('.account-link').first();
+  await page.evaluate(()=>window.multiNest.sidebarWidth(44));
+  await firstLink.locator('.color-dot').click();
+  assert.equal(await page.locator('#modal-root').evaluate(node=>node.classList.contains('hidden')),true,'left-clicking a collapsed color dot selects without opening customization');
+  assert.equal((await page.evaluate(()=>window.multiNest.getState())).state.selectedAccountId,await firstLink.getAttribute('data-account'));
+  await page.evaluate(()=>window.multiNest.sidebarWidth(152));
   await firstLink.click({button:'right'});
   await clickMenu(['Renomear conta…']);
   await page.fill('#rename-name','Minha conta');

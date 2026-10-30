@@ -1,7 +1,7 @@
 {
   "name": "astria",
   "productName": "Astria",
-  "version": "1.8.1",
+  "version": "1.9.0",
   "description": "Portable multi-account browser for browser games, with isolated sessions and a compact interface.",
   "main": "src/main.js",
   "private": true,
@@ -22,7 +22,7 @@
     "test:browser": "node tests/browser-behavior-e2e.js",
     "test:close": "node tests/close-e2e.js",
     "test:update": "node tests/update-flow.js",
-    "test:floating": "node tests/floating-e2e.js",
+    "test:floating": "node tests/floating-e2e.js && node tests/floating-multi-e2e.js",
     "test:layers": "node tests/layering-e2e.js",
     "brand:build": "node scripts/create-brand.js"
   },
