@@ -67,7 +67,9 @@ Unloading may disconnect a character. Offline progress depends on the game. Memo
 
 Choose **Layout → Floating** in the panel toolbar or app menu. One account fills the main area and a live second account appears above it. Click the miniature to swap accounts; press and drag it to move without swapping. The corner button moves it to the next corner. The swap button in the main toolbar also works with Enter, and arrow keys move the miniature while that button is focused.
 
-Selecting another account in the sidebar puts the previous main account in the miniature. Both pages keep their existing sessions and activity modes; no screenshot polling or duplicate game instance is used. The position is remembered per workspace and stays inside the visible game when resizing or using a fixed resolution. With only one available account, it remains a normal full-size panel. Explicitly suspended accounts are excluded from the miniature. Dialogs and other workspaces hide it. In Ultra fullscreen the pair still swaps; the miniature follows Ultra's existing secondary-account frame limit.
+Drag the miniature's bottom-right grip to resize it while preserving the game's proportions. The **− / +** buttons change its size without dragging; focus the grip and use arrow keys for fine adjustments. The **pin** button locks movement and resizing while keeping click-to-swap available. Unpin to adjust it again. Its position, relative size and pin setting are saved per workspace.
+
+Selecting another account in the sidebar puts the previous main account in the miniature. Both pages keep their existing sessions and activity modes; no screenshot polling or duplicate game instance is used. The miniature stays inside the visible game when resizing or using a fixed resolution. With only one available account, it remains a normal full-size panel. Explicitly suspended accounts are excluded from the miniature. Dialogs and other workspaces hide it. In Ultra fullscreen the pair still swaps; the miniature follows Ultra's existing secondary-account frame limit.
 
 ## Portable data
 

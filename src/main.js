@@ -554,7 +554,8 @@ function closeFloatingView() {
 function sendFloatingState() {
   if (!floatingView || floatingView.webContents.isDestroyed() || !floatingFrame) return;
   const a = accountById(floatingFrame.accountId);
-  const value = {name:a.name,color:a.color,theme:state.preferences.theme,language:state.preferences.language,ready:!!views.get(a.id)?.onScreen};
+  const workspace=state.workspaces.find(w=>w.id===state.activeWorkspaceId);
+  const value = {name:a.name,color:a.color,theme:state.preferences.theme,language:state.preferences.language,ready:!!views.get(a.id)?.onScreen,pinned:!!workspace.floating?.pinned};
   const key = JSON.stringify(value);
   if (floatingView.stateKey !== key) {floatingView.stateKey=key;floatingView.webContents.send('floating:state',value);}
 }
@@ -614,7 +615,19 @@ function swapFloating() {
 function moveFloating(x,y) {
   if (!floatingFrame || overlayOpen) return;
   const workspace=state.workspaces.find(w=>w.id===state.activeWorkspaceId);
+  if(workspace.floating?.pinned)return;
   workspace.floating={...floatingPosition(workspace.floating),accountId:floatingFrame.accountId,...positionAt(floatingFrame.area,floatingFrame.card,x,y)};
+  refreshViews();
+}
+
+function resizeFloating(width,origin=floatingFrame?.card) {
+  if(!floatingFrame||overlayOpen)return;
+  const workspace=state.workspaces.find(w=>w.id===state.activeWorkspaceId);
+  if(workspace.floating?.pinned)return;
+  const {area,viewport}=floatingFrame;
+  const position={...floatingPosition(workspace.floating),width:Math.max(180,width)/area.width};
+  const card=floatingBounds(area,viewport,position);
+  workspace.floating={...position,width:card.width/area.width,accountId:floatingFrame.accountId,...positionAt(area,card,origin.x,origin.y)};
   refreshViews();
 }
 
@@ -777,6 +790,7 @@ function registerIPC() {
   listen('floating:corner',()=>{
     if(!floatingFrame)return {ok:false};
     const w=state.workspaces.find(w=>w.id===state.activeWorkspaceId),p=floatingPosition(w.floating);
+    if(p.pinned)return {ok:false};
     const next=p.x>=.5?(p.y>=.5?{x:0,y:1}:{x:1,y:1}):(p.y>=.5?{x:0,y:0}:{x:1,y:0});
     w.floating={...p,accountId:floatingFrame.accountId,...next};refreshViews();persistState();return {ok:true};
   },floatingControl);
@@ -785,13 +799,29 @@ function registerIPC() {
     if(!floatingFrame)return {ok:false};
     moveFloating(floatingFrame.card.x+x,floatingFrame.card.y+y);persistState();return {ok:true};
   },floatingControl);
-  ipcMain.on('floating:drag-start',event=>{
+  listen('floating:resize-step',delta=>{
+    if(!Number.isFinite(delta))throw new Error(T('Tamanho inválido.'));
+    if(!floatingFrame)return {ok:false};
+    resizeFloating(floatingFrame.card.width+delta);persistState();return {ok:true};
+  },floatingSender);
+  listen('floating:pin',()=>{
+    if(!floatingFrame||overlayOpen)return {ok:false};
+    const w=state.workspaces.find(w=>w.id===state.activeWorkspaceId);
+    w.floating={...floatingPosition(w.floating),pinned:!w.floating?.pinned};
+    floatingDrag=undefined;refreshViews();persistState();return {ok:true};
+  },floatingSender);
+  ipcMain.on('floating:drag-start',(event,mode='move')=>{
     if(!floatingSender(event)||!floatingFrame||overlayOpen||!floatingView.getVisible())return;
-    floatingDrag={accountId:floatingFrame.accountId,workspaceId:state.activeWorkspaceId,x:floatingFrame.card.x,y:floatingFrame.card.y};
+    const workspace=state.workspaces.find(w=>w.id===state.activeWorkspaceId);
+    if(workspace.floating?.pinned||!['move','resize'].includes(mode))return;
+    floatingDrag={mode,accountId:floatingFrame.accountId,workspaceId:state.activeWorkspaceId,card:{...floatingFrame.card}};
   });
   ipcMain.on('floating:drag-move',(event,x,y)=>{
     if(!floatingSender(event)||!floatingDrag||floatingDrag.accountId!==floatingFrame?.accountId||floatingDrag.workspaceId!==state.activeWorkspaceId||!Number.isFinite(x)||!Number.isFinite(y))return;
-    moveFloating(floatingDrag.x+x,floatingDrag.y+y);
+    if(floatingDrag.mode==='resize'){
+      const vertical=y*floatingFrame.viewport.width/floatingFrame.viewport.height;
+      resizeFloating(floatingDrag.card.width+(Math.abs(x)>=Math.abs(vertical)?x:vertical),floatingDrag.card);
+    }else moveFloating(floatingDrag.card.x+x,floatingDrag.card.y+y);
   });
   ipcMain.on('floating:drag-end',event=>{
     if(!floatingSender(event)||!floatingDrag)return;

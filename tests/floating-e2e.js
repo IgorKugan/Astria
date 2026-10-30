@@ -35,10 +35,37 @@ async function documents(){return app.evaluate(async({webContents})=>Promise.all
  assert.ok(native.indexOf(chrome)>native.indexOf(secondary)&&native.indexOf(secondary)>native.indexOf(primary),'miniature and gesture surface are above primary');
  assert.ok(primary.bounds.width>secondary.bounds.width*2);assert.ok(secondary.bounds.x>=primary.bounds.x&&secondary.bounds.y>=primary.bounds.y);
  const alpha=await app.evaluate(({BaseWindow})=>{const view=BaseWindow.getAllWindows()[0].contentView.children.find(v=>v.webContents?.getURL().endsWith('/floating.html'));return view.webContents.capturePage().then(img=>{const bitmap=img.toBitmap(),s=img.getSize();return bitmap[(Math.floor(s.height/2)*s.width+Math.floor(s.width/2))*4+3];});});assert.equal(alpha,0,'gesture overlay is transparent above the game');
+ const cardBounds=async()=>(await layers()).find(v=>v.url.endsWith('/floating.html')).bounds;
+ const originalCard=await cardBounds();
+ assert.equal(await floating.locator('#larger').count(),1,'floating window exposes resize controls');
+ await floating.locator('#larger').click();await until(async()=>(await cardBounds()).width>originalCard.width,'larger button resizes');
+ const grip=await floating.locator('#resize').boundingBox(),beforeResize=await cardBounds();
+ await floating.mouse.move(grip.x+grip.width/2,grip.y+grip.height/2);await floating.mouse.down();
+ await floating.mouse.move(grip.x+grip.width/2-55,grip.y+grip.height/2-25);await delay(80);await floating.mouse.up();
+ await until(async()=>(await cardBounds()).width<beforeResize.width,'corner drag shrinks miniature');
+ assert.equal((await page.evaluate(()=>window.multiNest.getState())).state.selectedAccountId,'a','resize never swaps accounts');
+ const resized=await cardBounds();assert.ok(Math.abs((resized.height-28)/(resized.width-4)-(originalCard.height-28)/(originalCard.width-4))<.01,'resize keeps aspect ratio');
+ const beforeKeys=resized.width;await floating.locator('#resize').focus();await floating.keyboard.press('ArrowRight');await until(async()=>(await cardBounds()).width>beforeKeys,'keyboard resize');
+ assert.equal((await floating.evaluate(()=>window.floating.resizeStep(NaN))).ok,false,'reject invalid resize input');
+ await page.evaluate(()=>window.multiNest.language('pt-BR'));await until(()=>floating.locator('#pin').getAttribute('aria-label').then(v=>v==='Fixar janela'),'Portuguese resize labels');
+ await page.evaluate(()=>window.multiNest.language('en'));
+ fs.mkdirSync(path.join(root,'test-results'),{recursive:true});
+ for(const theme of ['light','dark']){
+   await page.evaluate(theme=>window.multiNest.theme(theme),theme);await until(()=>floating.evaluate(theme=>document.documentElement.classList.contains('light')===(theme==='light'),theme),'floating theme');
+   await floating.screenshot({path:path.join(root,'test-results','floating-resize-'+theme+'.png')});
+ }
+ await floating.locator('#pin').click();await until(()=>floating.locator('#pin').getAttribute('aria-pressed').then(v=>v==='true'),'pin pressed state');
+ const pinned=await cardBounds();assert.equal(await floating.locator('#smaller').isDisabled(),true,'pinned size is locked');assert.equal(await floating.locator('#corner').isDisabled(),true,'pinned corner is locked');
+ await floating.mouse.move(70,65);await floating.mouse.down();await floating.mouse.move(30,30);await floating.mouse.up();await delay(100);
+ await page.evaluate(()=>window.multiNest.floatingStep(-80,-80));assert.deepEqual(await cardBounds(),pinned,'pin blocks pointer and keyboard movement');
+ await floating.evaluate(async()=>{await window.floating.resizeStep(80);await window.floating.corner();});assert.deepEqual(await cardBounds(),pinned,'pin also blocks programmatic resize/corner commands');
+ assert.equal((await page.evaluate(()=>window.multiNest.getState())).state.selectedAccountId,'a','dragging pinned card does not swap');
+ for(const d of await documents()){assert.equal(d.instance,initial.find(s=>s.url===d.url).instance,'resizing never reloads');assert.equal(d.width,initial.find(s=>s.url===d.url).width,'resizing scales without changing game viewport');}
  await floating.locator('#card').click({position:{x:70,y:65}});
  await until(async()=>(await page.evaluate(()=>window.multiNest.getState())).state.selectedAccountId==='b','mini click swaps');
  await until(()=>app.evaluate(({webContents})=>webContents.getFocusedWebContents()?.getURL().endsWith('id=b')),'swap focuses game keyboard input');
  for(const d of await documents()){assert.equal(d.instance,initial.find(s=>s.url===d.url).instance,'swap never reloads');assert.equal(d.clicks,0,'preview click never reaches a game');}
+ assert.equal(await floating.locator('#pin').getAttribute('aria-pressed'),'true','pin survives swap');await floating.locator('#pin').click();await until(()=>floating.locator('#pin').getAttribute('aria-pressed').then(v=>v==='false'),'unpin restores controls');
  const beforeDrag=(await layers()).find(v=>v.url.endsWith('/floating.html')).bounds;
  await floating.mouse.move(70,65);await floating.mouse.down();await delay(250);
  await floating.mouse.move(35,35);await delay(100);await floating.mouse.up();
@@ -62,9 +89,10 @@ async function documents(){return app.evaluate(async({webContents})=>Promise.all
  assert.equal((await page.evaluate(()=>window.multiNest.floatingStep(NaN,1))).ok,false);
  const win=await app.browserWindow(page);await win.evaluate(w=>w.setSize(780,500));await page.evaluate(()=>window.multiNest.sidebarWidth(320));await delay(200);assert.equal(await page.locator('.panel-head').evaluate(el=>el.scrollWidth<=el.clientWidth),true,'floating toolbar fits with a wide sidebar');await page.evaluate(()=>window.multiNest.floatingStep(10000,10000));
  native=await layers();const main=native.filter(v=>v.onScreen).sort((a,b)=>b.bounds.width-a.bounds.width)[0].bounds,card=native.find(v=>v.url.endsWith('/floating.html')).bounds;assert.ok(card.x>=main.x&&card.y>=main.y&&card.x+card.width<=main.x+main.width&&card.y+card.height<=main.y+main.height,'resized miniature stays inside main game');
- const state=(await page.evaluate(()=>window.multiNest.getState())).state;const saved=state.workspaces.find(w=>w.id==='games').floating;assert.ok(saved&&Number.isFinite(saved.x)&&Number.isFinite(saved.y));
+ const currentFloating=await until(()=>app.context().pages().find(p=>p.url().endsWith('/floating.html')),'restored control');await currentFloating.locator('#pin').click();
+ const state=(await page.evaluate(()=>window.multiNest.getState())).state;const saved=state.workspaces.find(w=>w.id==='games').floating;assert.ok(saved&&Number.isFinite(saved.x)&&Number.isFinite(saved.y)&&saved.width>0&&saved.pinned);
  await app.close();app=await launch();page=await app.firstWindow();await page.waitForSelector('.panel');const restored=(await page.evaluate(()=>window.multiNest.getState())).state;assert.equal(restored.workspaces.find(w=>w.id==='games').layout,'floating');assert.deepEqual(restored.workspaces.find(w=>w.id==='games').floating,saved);
  await page.evaluate(()=>window.multiNest.workspaceLayout('focus'));await until(async()=>!(await layers()).some(v=>v.url.endsWith('/floating.html')),'leaving floating releases trusted helper');
  await page.evaluate(async()=>{await window.multiNest.workspaceLayout('floating');const state=(await window.multiNest.getState()).state;for(const a of state.accounts)if(a.id!==state.selectedAccountId)await window.multiNest.accountActivity(a.id,'suspended');});await until(async()=>!(await layers()).some(v=>v.url.endsWith('/floating.html')),'suspended accounts excluded from miniature');await until(async()=>(await layers()).filter(v=>v.onScreen).length===1,'one available account remains full size');
- fs.mkdirSync(path.join(root,'test-results'),{recursive:true});fs.writeFileSync(path.join(root,'test-results','floating-e2e.json'),JSON.stringify({passed:true,checks:['native transparent overlay','live game reuse','click swap','drag without swap','corner/keyboard controls','session isolation','modal/workspace hiding','Ultra swap','fixed resolution','resize bounds','saved layout/position','helper teardown']},null,2));console.log('PASS: floating live accounts, transparent stacking, click/drag, keyboard, isolation, Ultra and persistence');
+ fs.mkdirSync(path.join(root,'test-results'),{recursive:true});fs.writeFileSync(path.join(root,'test-results','floating-e2e.json'),JSON.stringify({passed:true,checks:['native transparent overlay','live game reuse','click swap','drag without swap','corner/keyboard controls','resize grip/buttons/keyboard','pinned move/resize lock with click swap','EN/PT-BR labels and both themes','session isolation','modal/workspace hiding','Ultra swap','fixed resolution','resize bounds','saved layout/position/size/pin','helper teardown']},null,2));console.log('PASS: floating live accounts, transparent stacking, click/drag, resize, pin, keyboard, isolation, Ultra and persistence');
 })().catch(error=>{console.error(error);process.exitCode=1;}).finally(async()=>{if(app)await app.close();server.close();});
