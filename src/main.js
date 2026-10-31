@@ -10,6 +10,8 @@ const { planViewLoads } = require('./view-loads');
 const { closePage } = require('./view-close');
 const { frameBudget, resolutions, resolutionBounds } = require('./performance');
 const { collectPageMemory } = require('./memory-cleanup');
+const { Automation } = require('./automation');
+const MacroCore = require('./macro-core');
 const { floatingPosition, floatingPositions, floatingDefault, floatingAccounts, floatingBounds, positionAt } = require('./floating-layout');
 const { configureStorage, writeAccountGuide } = require('./storage');
 const { Updates } = require('./updates');
@@ -44,6 +46,7 @@ let configPath;
 let overlayOpen = false;
 let metricsTimer;
 let updates;
+let automation,pendingPick,preparingPick;
 let layoutReady = false;
 let windowShown = false;
 let quitting = false;
@@ -244,11 +247,13 @@ function applyResolution(view, account, panel = view.getBounds()) {
     // A new native view has no render widget yet. Initialize at the game's
     // preset size below the UI, then fit it only after the document is ready.
     if (!view.rendererReady) {
+      contents.astriaInputScale=1;
       view.setBounds({x:panel.x,y:panel.y,...size});
       contents.setZoomFactor(1);
       return;
     }
     const key = `${size.width}x${size.height}:${fitted.width}:${fitted.height}`;
+    contents.astriaInputScale=fitted.width/size.width;
     view.setBounds(fitted);
     if (view.resolutionKey !== key) {
       contents.setZoomFactor(1);
@@ -257,6 +262,7 @@ function applyResolution(view, account, panel = view.getBounds()) {
     }
     view.resolutionKey = key;
   } else {
+    contents.astriaInputScale=1;
     if (view.emulated && view.rendererReady) { contents.disableDeviceEmulation(); view.emulated = false; }
     view.resolutionKey = null;
     view.setBounds(panel);
@@ -312,7 +318,8 @@ function makeView(account) {
     refreshViews();
   });
   // Provisional/download navigations can abort and retain the existing document.
-  view.webContents.on('did-navigate', () => { view.rendererReady = false; });
+  view.webContents.on('did-navigate', () => { view.rendererReady = false; cancelPick(account.id); automation?.stop(account.id).catch(()=>{}); });
+  for(const event of ['render-process-gone','destroyed'])view.webContents.on(event,()=>{cancelPick(account.id);automation?.stop(account.id).catch(()=>{});});
   view.throttled = !backgroundMode(modeFor(account));
   configureGameFrames(view.webContents, account.id);
   views.set(account.id, view);
@@ -332,7 +339,7 @@ function makeView(account) {
   // Use the regular Chromium UA where Electron's brand could cause false incompatibility.
   const ua = view.webContents.getUserAgent().replace(/\sElectron\/\S+/g, '');
   view.webContents.setUserAgent(ua);
-  view.webContents.on('context-menu', (_event, params) => showAccountMenu(account.id, null, params));
+  view.webContents.on('context-menu', (_event, params) => {if(pendingPick?.id!==account.id&&Date.now()>(view.webContents.astriaAutomationContextUntil||0))showAccountMenu(account.id, null, params);});
   view.webContents.on('focus', () => {
     if (!overlayOpen && view.onScreen && !view.floatingViewport && state.selectedAccountId !== account.id) {
       selectAccountState(account.id);
@@ -393,6 +400,7 @@ function makeView(account) {
 }
 
 function destroyView(id, preserveBounds = false) {
+  cancelPick(id);
   clearTimeout(idleTimers.get(id)); idleTimers.delete(id);
   clearTimeout(initialLoads.get(id)?.timer); initialLoads.delete(id);
   const view = views.get(id);
@@ -404,7 +412,9 @@ function destroyView(id, preserveBounds = false) {
   views.delete(id);
   viewStatuses.delete(id);
   if (!preserveBounds) boundsForAccounts.delete(id);
-  const completion = Promise.all([closePage(view.webContents), ...[...(view.popups || [])].filter(popup => !popup.isDestroyed()).map(popup => closePage(popup.webContents))]).finally(() => {
+  const active=automation?.runs.has(id),stopping=automation?.stop(id);
+  const close=()=>Promise.all([closePage(view.webContents), ...[...(view.popups || [])].filter(popup => !popup.isDestroyed()).map(popup => closePage(popup.webContents))]);
+  const completion = (active?Promise.resolve(stopping).then(close):close()).finally(() => {
     closingViews.delete(id);
     if (!quitting && windowMain && !windowMain.isDestroyed()) setImmediate(refreshViews);
   });
@@ -420,7 +430,8 @@ function closeApplication(quit = false) {
   quitAfterClosing ||= quit;
   if (closingApplication) return closingApplication;
   quitting = true;
-  closingApplication = Promise.all([...closingViews.values(), ...[...views.keys()].map(id => destroyView(id))]).then(() => {
+  cancelPick();
+  closingApplication = Promise.all([automation?.stopAll(),...closingViews.values(), ...[...views.keys()].map(id => destroyView(id))]).then(() => {
     allowWindowClose = true;
     if (quitAfterClosing) app.quit();
     else if (windowMain && !windowMain.isDestroyed()) windowMain.close();
@@ -689,6 +700,54 @@ function accountById(id) {
   return account;
 }
 
+function cancelPick(id) {
+  if(id&&pendingPick?.id!==id&&preparingPick?.id!==id)return;
+  preparingPick=undefined;
+  if(!pendingPick)return;
+  const pick=pendingPick;pendingPick=undefined;clearTimeout(pick.timer);
+  if(!pick.contents.isDestroyed())pick.contents.send('astria:automation-pick-cancel');
+  pick.resolve({ok:true,cancelled:true});
+}
+
+function automationPoint(value) {
+  if(!value||!Number.isFinite(value.x)||!Number.isFinite(value.y)||value.x<0||value.x>=1||value.y<0||value.y>=1||!Number.isFinite(value.width)||!Number.isFinite(value.height)||value.width<1||value.height<1||value.width>100000||value.height>100000)throw Error(T('Ponto inválido.'));
+  return {x:value.x,y:value.y,width:value.width,height:value.height};
+}
+
+async function pickAutomationPoint(id,initial) {
+  accountById(id);if(initial)initial=automationPoint(initial);
+  cancelPick();const preparation={id};preparingPick=preparation;
+  await automation.stop(id);if(preparingPick!==preparation)return {ok:true,cancelled:true};
+  const a=accountById(id);if(modeFor(a)==='suspended')throw Error(T('Retome a conta suspensa primeiro.'));
+  state.activeWorkspaceId=a.workspaceId;selectAccountState(id);requestAccountFocus();publish();
+  let view;
+  for(let n=0;n<100;n++){
+    if(preparingPick!==preparation)return {ok:true,cancelled:true};
+    view=views.get(id);
+    if(view?.rendererReady&&view.onScreen&&!overlayOpen)break;
+    await new Promise(resolve=>setTimeout(resolve,50));
+  }
+  if(preparingPick!==preparation)return {ok:true,cancelled:true};
+  preparingPick=undefined;
+  if(!view?.rendererReady||!view.onScreen||overlayOpen)throw Error(T('Aguarde o carregamento da página.'));
+  return new Promise(resolve=>{
+    const token=randomUUID(),contents=view.webContents;
+    pendingPick={id,token,contents,resolve,timer:setTimeout(()=>cancelPick(id),300000)};
+    contents.send('astria:automation-pick',{token,point:initial,text:T('Clique para marcar · Setas para ajustar · Enter confirma · Esc ou botão direito cancela')});
+    if(windowMain.isFocused())contents.focus();
+  });
+}
+
+async function readMacroFile(file) {
+  const handle=await fs.promises.open(file,'r');
+  try{
+    const buffer=Buffer.alloc(8*1024*1024+1);let total=0,count;
+    do{({bytesRead:count}=await handle.read(buffer,total,buffer.length-total,null));total+=count;}while(count&&total<buffer.length);
+    if(total>=buffer.length)throw Error(T('Arquivo muito grande.'));
+    return JSON.parse(buffer.subarray(0,total).toString('utf8'));
+  }finally{await handle.close();}
+}
+
 function listen(name, fn, authorize = trustedSender) {
   actions.set(name, fn);
   ipcMain.handle(name, async (event, ...args) => {
@@ -745,6 +804,9 @@ function showAccountMenu(id, point, params) {
     { label: T('Renomear conta…'), click: () => uiCommand('rename-account', id) },
     { label: T('Escolher cor…'), click: () => uiCommand('account-color', id) },
     { label: T('Contas flutuantes…'), enabled:currentAccounts().length>1, click:()=>uiCommand('floating-accounts') },
+    { label: 'Auto Clicker…', click:()=>uiCommand('auto-clicker',id) },
+    { label: 'Macro Maker…', click:()=>uiCommand('macro-maker',id) },
+    { label: T('Parar automação'), enabled:automation.runs.has(id), click:()=>runAction('automation:stop',id) },
     { type: 'separator' },
     { label: T('Atividade'), submenu: [
       { label: T('Sempre ativa · desempenho máximo'), type: 'radio', checked: modeFor(a) === 'always', click: () => runAction('account:activity', id, 'always') },
@@ -786,12 +848,19 @@ function showAppMenu(point) {
   const workspace = state.workspaces.find(w => w.id === state.activeWorkspaceId);
   const metrics = app.getAppMetrics();
   const memory = Math.round(metrics.reduce((sum, m) => sum + Number(m.memory?.workingSetSize || 0), 0) / 1024);
+  const selected=currentAccounts().find(a=>a.id===state.selectedAccountId)||currentAccounts()[0];
   popupMenu([
     { label: T('Nova conta…'), click: () => uiCommand('add-account') },
     { label: T('Novo espaço…'), click: () => uiCommand('add-workspace') },
     { label: T('Editar espaço…'), click: () => uiCommand('edit-workspace') },
     { type: 'separator' },
     { label: 'Layout', submenu: layoutMenuItems(workspace) },
+    { label: T('Automação'), submenu:[
+      {label:'Auto Clicker…',enabled:!!selected,click:()=>uiCommand('auto-clicker',selected.id)},
+      {label:'Macro Maker…',enabled:!!selected,click:()=>uiCommand('macro-maker',selected.id)},
+      {type:'separator'},
+      {label:T('Parar todas as automações'),enabled:automation.runs.size>0,click:()=>runAction('automation:stop-all')}
+    ]},
     { type: 'separator' },
     { label: T('Exportar configuração…'), click: () => runAction('config:export') },
     { label: T('Importar configuração…'), click: () => uiCommand('import') },
@@ -906,6 +975,40 @@ function registerIPC() {
     return { ok: true };
   });
   listen('state:get', () => ({ ok: true, state, statuses: Object.fromEntries(viewStatuses) }));
+  listen('automation:get',id=>({ok:true,...automation.get(id)}));
+  listen('automation:save',async(id,settings)=>({ok:true,settings:await automation.save(id,settings)}));
+  listen('automation:start',async(id,request)=>({ok:true,runtime:await automation.start(id,request)}));
+  listen('automation:stop',async id=>{accountById(id);await automation.stop(id);return {ok:true};});
+  listen('automation:stop-all',async()=>{await automation.stopAll();return {ok:true};});
+  listen('automation:pick',pickAutomationPoint);
+  listen('automation:preview',(id,value)=>{
+    const a=accountById(id),point=automationPoint(value),view=views.get(id);
+    if(!view?.rendererReady)throw Error(T('Aguarde o carregamento da página.'));
+    state.activeWorkspaceId=a.workspaceId;selectAccountState(id);requestAccountFocus();publish();
+    view.webContents.send('astria:automation-preview',{point,label:T('Alvo')});return {ok:true};
+  });
+  listen('automation:import',async id=>{
+    accountById(id);const result=await dialog.showOpenDialog(windowMain,{title:T('Importar macro'),properties:['openFile'],filters:[{name:'Macro Maker JSON',extensions:['json']}]});
+    if(result.canceled||!result.filePaths?.[0])return {ok:true,cancelled:true};
+    const raw=await readMacroFile(result.filePaths[0]),profile=MacroCore.cleanProfile(raw.profile||raw),settings=automation.get(id).settings;
+    const name=String(raw.name||path.basename(result.filePaths[0],'.json')).trim().slice(0,80)||'Macro';
+    const record={id:randomUUID(),name,profile};
+    if(raw.viewport)record.viewport=raw.viewport;
+    settings.macros.push(record);return {ok:true,settings:await automation.save(id,settings)};
+  });
+  listen('automation:export',async(id,macroId)=>{
+    const record=automation.get(id).settings.macros.find(m=>m.id===macroId);if(!record)throw Error(T('Macro não encontrado.'));
+    const folder=path.join(automation.directory,'Exports');fs.mkdirSync(folder,{recursive:true});
+    const result=await dialog.showSaveDialog(windowMain,{title:T('Exportar macro'),defaultPath:path.join(folder,(record.name.replace(/[\\/:*?"<>|\x00-\x1f]/g,'_')||'Macro')+'.json'),filters:[{name:'Macro Maker JSON',extensions:['json']}]});
+    if(result.canceled||!result.filePath)return {ok:true,cancelled:true};
+    fs.writeFileSync(result.filePath,JSON.stringify({...record.profile,name:record.name,...(record.viewport?{viewport:record.viewport}:{})},null,2),{mode:0o600});return {ok:true};
+  });
+  ipcMain.on('astria:automation-picked',(event,result)=>{
+    const pick=pendingPick;
+    if(!pick||event.sender!==pick.contents||event.senderFrame!==pick.contents.mainFrame||result?.token!==pick.token)return;
+    let point;try{if(!result.cancelled)point=automationPoint(result.point);}catch{return;}
+    pendingPick=undefined;clearTimeout(pick.timer);pick.resolve(result.cancelled?{ok:true,cancelled:true}:{ok:true,point});
+  });
   listen('workspace:add', (name) => {
     const w = { id: randomUUID(), name: safeString(name, 55) || T('Novo espaço'), layout: 'auto' };
     state.workspaces.push(w); state.activeWorkspaceId = w.id; state.selectedAccountId = null;
@@ -983,11 +1086,13 @@ function registerIPC() {
     if (!next) throw new Error(T('Cor inválida.'));
     accountById(id).color = next; publish(); return { ok: true };
   });
-  listen('account:activity', (id, mode) => {
+  listen('account:activity', async (id, mode) => {
     if (!activityModes.has(mode)) throw new Error(T('Modo de atividade inválido.'));
     accountById(id).activity = mode;
     if (id === state.selectedAccountId && mode !== 'suspended') requestAccountFocus();
-    publish(); return { ok: true };
+    publish();
+    if(mode==='suspended')await closingViews.get(id);
+    return { ok: true };
   });
   listen('account:eco-fps', (id, fps) => {
     if (!ecoRates.includes(fps)) throw new Error(T('FPS inválido.'));
@@ -1017,6 +1122,7 @@ function registerIPC() {
   });
   listen('view:cleanup', async id => {
     accountById(id);
+    if(automation.runs.has(id))throw Error(T('Pare a automação antes de limpar a memória.'));
     const view = views.get(id);
     if (!view) throw new Error(T('Retome a conta suspensa primeiro.'));
     return {ok:true, result:await collectPageMemory(view.webContents)};
@@ -1225,6 +1331,10 @@ if (ownsInstance) app.whenReady().then(() => {
   session.defaultSession?.setPermissionCheckHandler(() => false);
   session.defaultSession?.setDevicePermissionHandler?.(() => false);
   state = loadState();
+  automation=new Automation({directory:path.join(storage.root||app.getPath('userData'),'Automation'),account:accountById,view:id=>views.get(id),notify:(id,runtime)=>{
+    if(windowMain&&!windowMain.isDestroyed())windowMain.webContents.send('automation:state',{id,runtime});
+    const contents=views.get(id)?.webContents;if(contents&&!contents.isDestroyed())contents.send('astria:automation',runtime);
+  }});
   requestAccountFocus();
   Menu.setApplicationMenu(null);
   // Game requests use Chromium's per-account cache without request interception.

@@ -1,0 +1,22 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
+const {Automation}=require('../src/automation');
+(async()=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'astria-automation-host-')),events=[],accounts=new Map(['a','b'].map(id=>[id,{id,url:'https://game.example/',activity:'always'}]));
+ let disposed=0;
+ const engine={normalizeSettings:raw=>JSON.parse(JSON.stringify(raw||{macros:[],targets:[]})),createDriver:async()=>({dispose:async()=>{disposed++;}}),runMacro:(_record,{signal,onState})=>new Promise(resolve=>{onState({phase:'waiting',cycle:1});signal.addEventListener('abort',resolve,{once:true});}),runClicker:(_targets,{signal,onState})=>new Promise(resolve=>{onState({phase:'waiting',targets:[]});signal.addEventListener('abort',resolve,{once:true});})};
+ const view={rendererReady:true,webContents:{isDestroyed:()=>false,getURL:()=> 'https://game.example/'}};
+ const host=new Automation({directory,account:id=>{const a=accounts.get(id);if(!a)throw Error('Unknown account');return a;},view:()=>view,notify:(id,runtime)=>events.push({id,runtime}),engine});
+ assert.deepEqual(host.get('a').settings,{macros:[],targets:[]});
+ const settings={macros:[{id:'m',name:'Macro',profile:{}}],targets:[{id:'t',enabled:true}]};await host.save('a',settings);
+ assert.deepEqual(host.get('a').settings,settings);assert.deepEqual(host.get('b').settings,{macros:[],targets:[]},'settings stay per account');assert.equal(host.get('a').runtime.running,false,'saved settings do not auto-start');
+ assert.ok(fs.existsSync(path.join(directory,'a.json')));assert.equal(fs.existsSync(path.join(directory,'a.json.tmp')),false);
+ await host.start('a',{kind:'macro',macroId:'m'});assert.equal(host.get('a').runtime.running,true);await host.start('b',{kind:'clicker'}).then(()=>assert.fail('empty targets should not run'),()=>{});
+ await host.start('a',{kind:'clicker'});assert.equal(disposed,1,'switching tools releases previous driver');assert.equal(host.get('a').runtime.kind,'clicker');
+ await host.stopAll();assert.equal(disposed,2);assert.equal(host.get('a').runtime.running,false);assert.ok(events.some(e=>e.runtime.phase==='waiting'));
+  const pending=host.start('a',{kind:'clicker'});await host.stopAll();await pending;assert.equal(disposed,2,'stop-all cancels a start before driver creation');
+ accounts.get('a').activity='suspended';await assert.rejects(host.start('a',{kind:'clicker'}),/suspend|Retome/i);
+ assert.throws(()=>host.get('../escape'));assert.equal(fs.existsSync(path.join(path.dirname(directory),'escape.json')),false);
+ fs.writeFileSync(path.join(directory,'b.json'),'{bad');assert.throws(()=>host.get('b'),/settings|configura/i);assert.equal(fs.readFileSync(path.join(directory,'b.json'),'utf8'),'{bad','invalid settings are never overwritten while reading');
+ console.log('PASS: per-account portable automation settings, stopped restore, replacement/stop cleanup and invalid-file preservation');
+})().catch(error=>{console.error(error);process.exitCode=1;});

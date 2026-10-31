@@ -98,6 +98,10 @@
     'A atualização já está sendo preparada.':'The update is already being prepared.','Não foi possível preparar a atualização. Consulte Save/Updates/apply.log.':'Could not prepare the update. See apply.log inside the update’s Save/Updates folder.',
     'A preparação da atualização demorou demais. Seus jogos continuam abertos.':'Update preparation timed out. Your games remain open.','Resposta muito grande.':'Response is too large.'
   };
+  Object.assign(strings,typeof module==='object'&&module.exports?require('./automation-i18n'):globalThis.AstriaAutomationStrings||{});
+  strings['Parar automação']='Stop automation';
+  strings['Pare a automação antes de limpar a memória.']='Stop automation before cleaning memory.';
+  Object.assign(strings,{'Ponto inválido.':'Invalid point.','Aguarde o carregamento da página.':'Wait for the page to load.','Adicione e ative um alvo primeiro.':'Add and enable a target first.','Configuração de automação inválida.':'Invalid automation settings.','Parar todas as automações':'Stop all automation','Clique para marcar · Setas para ajustar · Enter confirma · Esc ou botão direito cancela':'Click to mark · Arrows to adjust · Enter to confirm · Esc or right-click to cancel'});
   const escape = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const pattern = new RegExp(Object.keys(strings).sort((a,b)=>b.length-a.length).map(escape).join('|'), 'g');
   function translate(value, language = 'en') {

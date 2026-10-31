@@ -61,3 +61,78 @@ const setLimit = contextBridge.executeInMainWorld({
 
 // No API is exported to the site; only the host can send a new frame budget.
 ipcRenderer.on('astria:frame-limit', (_event, fps) => setLimit(fps));
+
+// Passive page-relative markers; the website never receives an automation API.
+if(process.isMainFrame){
+  let host,root,markers=[],preview,pick,timer,suppressClick=false,suppressContext=false;
+  const heldKeys=new Set(),heldButtons=new Set(),suppressedKeys=new Set(),suppressedButtons=new Set();
+  const style=(node,text)=>{node.style.cssText=text;return node;};
+  function surface(){
+    if(host?.isConnected)return true;
+    if(!document.documentElement)return false;
+    host=style(document.createElement('div'),'all:initial;position:fixed!important;inset:0!important;z-index:2147483647!important;pointer-events:none!important;');
+    host.setAttribute('data-astria-overlay','');host.setAttribute('aria-hidden','true');root=host.attachShadow({mode:'closed'});document.documentElement.append(host);return true;
+  }
+  function cross(point,label,picking=false){
+    const node=style(document.createElement('div'),`position:absolute;left:${point.x*innerWidth}px;top:${point.y*innerHeight}px;opacity:${picking?'.9':'.5'};color:#a6e7fa;pointer-events:none;filter:drop-shadow(0 0 2px #000);font:11px 'Segoe UI',sans-serif;`);
+    node.append(style(document.createElement('span'),'position:absolute;left:-10px;top:-10px;width:20px;height:20px;border:1px solid currentColor;border-radius:50%;box-sizing:border-box;'));
+    node.append(style(document.createElement('span'),'position:absolute;left:-16px;top:0;width:32px;height:1px;background:currentColor;'));
+    node.append(style(document.createElement('span'),'position:absolute;left:0;top:-16px;width:1px;height:32px;background:currentColor;'));
+    const text=style(document.createElement('span'),'position:absolute;left:14px;top:10px;white-space:nowrap;background:#101820b0;border-radius:3px;padding:2px 4px;');text.textContent=label;node.append(text);return node;
+  }
+  function draw(){
+    if(!surface())return;
+    root.replaceChildren();const now=Date.now();
+    if(preview&&now>=preview.expires)preview=undefined;
+    host.dataset.astriaMarkers=String(markers.length+(preview?1:0));host.dataset.astriaPicking=String(!!pick);
+    host.style.setProperty('pointer-events',pick?'auto':'none','important');host.style.cursor=pick?'crosshair':'default';
+    if(pick){
+      root.append(cross(pick.point,Math.round(pick.point.x*innerWidth)+', '+Math.round(pick.point.y*innerHeight),true));
+      const help=style(document.createElement('div'),'position:absolute;bottom:14px;left:50%;transform:translateX(-50%);max-width:90%;background:#101820e8;color:#e9f3ff;border:1px solid #9fd8ed;border-radius:6px;padding:9px 13px;font:12px "Segoe UI",sans-serif;pointer-events:none;');help.textContent=pick.text;root.append(help);
+    }else if(!document.hidden){
+      for(const marker of markers)root.append(cross(marker.point,(marker.label?marker.label+' · ':'')+Math.max(0,Math.ceil((marker.nextAt-now)/1000))+' s'));
+      if(preview)root.append(cross(preview.point,preview.label||''));
+    }
+    clearTimeout(timer);timer=undefined;
+    if((markers.length||preview)&&!document.hidden)timer=setTimeout(draw,250);
+    if(!pick&&!markers.length&&!preview){host.remove();host=root=undefined;}
+  }
+  function finish(cancelled){
+    if(!pick)return;const result=pick;pick=undefined;draw();
+    for(const key of heldKeys)suppressedKeys.add(key);heldKeys.clear();
+    for(const button of heldButtons)suppressedButtons.add(button);heldButtons.clear();
+    ipcRenderer.send('astria:automation-picked',{token:result.token,cancelled,point:cancelled?undefined:{...result.point,width:innerWidth,height:innerHeight}});
+  }
+  const stop=event=>{event.preventDefault();event.stopImmediatePropagation();};
+  function point(event){return {x:Math.max(0,Math.min(innerWidth-1,event.clientX))/innerWidth,y:Math.max(0,Math.min(innerHeight-1,event.clientY))/innerHeight};}
+  for(const type of ['pointerdown','pointerup','pointermove','mousedown','mouseup','click','contextmenu','wheel','keydown','keyup','keypress'])window.addEventListener(type,event=>{
+    if(!event.isTrusted)return;
+    const key=event.code||event.key;
+    if(!pick){
+      if(type==='keydown'&&!event.repeat)suppressedKeys.delete(key);
+      if(suppressedKeys.has(key)&&['keydown','keyup','keypress'].includes(type)){stop(event);if(type==='keyup')suppressedKeys.delete(key);return;}
+      if(type==='pointerdown'){suppressedButtons.delete(event.button);suppressClick=false;suppressContext=false;}
+      if(suppressedButtons.has(event.button)&&['mousedown','mouseup','pointerup'].includes(type)){stop(event);if(type==='mouseup')suppressedButtons.delete(event.button);return;}
+      if(type==='click'&&suppressClick){stop(event);suppressClick=false;}if(type==='contextmenu'&&suppressContext){stop(event);suppressContext=false;}return;
+    }
+    stop(event);
+    if(type==='keydown')heldKeys.add(key);if(type==='keyup')heldKeys.delete(key);
+    if(type==='pointerdown')heldButtons.add(event.button);if(type==='mouseup')heldButtons.delete(event.button);
+    if(type==='pointermove'){pick.point=point(event);draw();}
+    if(type==='pointerup'&&event.button===0){pick.point=point(event);suppressClick=true;setTimeout(()=>{suppressClick=false;},250);finish(false);}
+    if(type==='pointerdown'&&event.button===2){suppressContext=true;setTimeout(()=>{suppressContext=false;},250);finish(true);}
+    if(type==='keydown'){
+      if(event.key==='Escape')finish(true);
+      else if(event.key==='Enter')finish(false);
+      else{
+        const amount=event.shiftKey?10:1,delta={ArrowLeft:[-amount,0],ArrowRight:[amount,0],ArrowUp:[0,-amount],ArrowDown:[0,amount]}[event.key];
+        if(delta){pick.point={x:Math.max(0,Math.min(innerWidth-1,pick.point.x*innerWidth+delta[0]))/innerWidth,y:Math.max(0,Math.min(innerHeight-1,pick.point.y*innerHeight+delta[1]))/innerHeight};draw();}
+      }
+    }
+  },{capture:true,passive:false});
+  ipcRenderer.on('astria:automation',(_event,value)=>{markers=Array.isArray(value?.targets)?value.targets:[];draw();});
+  ipcRenderer.on('astria:automation-preview',(_event,value)=>{preview={...value,expires:Date.now()+1600};draw();});
+  ipcRenderer.on('astria:automation-pick',(_event,value)=>{pick={...value,point:value.point||{x:.5,y:.5}};draw();});
+  ipcRenderer.on('astria:automation-pick-cancel',()=>finish(true));
+  document.addEventListener('visibilitychange',draw);window.addEventListener('resize',()=>{if(pick)finish(true);else if(markers.length||preview)draw();});
+}

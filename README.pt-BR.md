@@ -75,6 +75,19 @@ O clique esquerdo na cor seleciona a conta, inclusive com a lateral recolhida. P
 
 ## Dados portáteis
 
+### Automação nativa
+
+Abra o botão **Automação** da conta ou clique nela com o botão direito e escolha **Auto Clicker…** / **Macro Maker…**. São ferramentas separadas:
+
+- **Auto Clicker:** adicione alvos, marque os pontos na página do jogo, escolha o botão do mouse ou entrada de teclado e o intervalo de cada alvo. Uma mira discreta mostra o alvo e a contagem para a próxima ação. A prévia mostra o jogo temporariamente. As entradas ficam naquela conta e o cursor do Windows continua livre.
+- **Macro Maker:** organize passos de tecla, clique, movimento, rolagem, texto e espera; configure pausas e repetições, execute uma vez ou em ciclos e importe/exporte arquivos JSON do Macro Maker versão 2.
+
+Os pontos pertencem à página da conta e acompanham as janelas flutuantes, a resolução fixa, o zoom e as trocas com a principal. Se o jogo reorganizar os controles, marque novamente. Clicar para escolher o ponto não clica no jogo. Esc ou botão direito cancelam a seleção.
+
+Cada conta funciona de forma independente. Iniciar uma ferramenta para a outra naquela conta. Use **Parar**, o menu da conta ou **Menu → Automação → Parar todas as automações**. Os atalhos normais do jogo continuam disponíveis. Recarregar/navegar, suspender ou fechar a conta para a automação; reabrir o Astria nunca inicia sozinho. A política existente de descarregar após cinco minutos ainda vale para Ativa quando visível. Não são criadas outras instâncias do jogo nem capturas contínuas de tela.
+
+As configurações e exportações ficam em **Save/Automation**, separadas dos perfis dos jogos. Importar um macro nunca dá controle sobre o desktop: todas as entradas ficam na conta escolhida do Astria.
+
 Páginas abertas em segundo plano começam com uma área de tamanho adequado, baseada no painel visível, em vez de uma superfície de 1×1 pixel. Assim, os jogos podem calcular o Canvas, a câmera e a interface iniciais em um tamanho normal. Trocar entre contas Sempre ativas mantém a mesma página e seu estado em memória; não recarrega nem copia dados de outra conta.
 
 O Astria cria **Save** ao lado do executável ao abrir pela primeira vez:
